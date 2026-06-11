@@ -208,7 +208,8 @@ if __name__ == '__main__':
     start = time.time()
     optimal_gen = OptimalGenerator(config)
     minimal_set_trajectories = optimal_gen.run()
-    print(f'Finished Generating. Took {time.time() - start} seconds')
+    total_trajectories = sum(len(trajs) for trajs in minimal_set_trajectories.values())
+    print(f'Finished Generating. Total {total_trajectories} trajectories from {len(minimal_set_trajectories)} start angles. \nTook {time.time() - start:.2f} seconds')
 
     write_to_json(args.output, minimal_set_trajectories, config)
     save_visualizations(args.visualizations, minimal_set_trajectories)
