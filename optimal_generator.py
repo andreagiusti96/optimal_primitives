@@ -236,6 +236,7 @@ class OptimalGenerator:
             a list of trajectories that begin at that angle
 
         """
+        verbosity = 1
         quadrant1_end_poses = defaultdict(list)
 
         # Since we only compute for quadrant 1 we only need headings between
@@ -250,10 +251,11 @@ class OptimalGenerator:
             np.round(min_trajectory_length / self.grid_resolution)
         )
         
+        # for each initial heading angle
         for start_heading in initial_headings:
             iterations_without_trajectory = 0
 
-            print(f'Generating set {initial_headings.index(start_heading)+1} of {len(initial_headings)}' )
+            print(f'Generating set {initial_headings.index(start_heading)+1} of {len(initial_headings)}: initial heading = {start_heading:.2f} rad' )
 
             prior_end_poses = index.Index()
 
@@ -267,20 +269,31 @@ class OptimalGenerator:
             target_headings = list(
                 filter(lambda x: abs(start_heading - x) <= np.pi / 2, target_headings)
             )
+            
+            iter_counter = 0
             while iterations_without_trajectory < self.stopping_threshold:
+                iter_counter += 1
+                if verbosity>=1:
+                    print(f"> Wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {iterations_without_trajectory} without new trajectories")
+
                 iterations_without_trajectory += 1
             
                 # Generate x,y coordinates for current wave front
                 positions = self._get_wave_front_points(wave_front_cur_pos)
 
+                # for each target position in the first quadrant
                 for target_point in positions:
-
+                    
+                    # for each target heading that is within 90 degrees of the start heading
                     for target_heading in target_headings:
+                        if verbosity>=2:
+                            print(f"  > [0.00, 0.00, {start_heading:.2f}] -> [{target_point[0]:.2f}, {target_point[1]:.2f}, {target_heading:.2f}]", end='')
+                        
                         # Use 10% of grid separation for finer granularity
                         # when checking if trajectory overlaps another already
                         # seen trajectory
 
-
+                        # Generate optimal trajectory from start to target
                         trajectory = self.trajectory_generator.generate_trajectory(
                             target_point,
                             start_heading,
@@ -316,8 +329,24 @@ class OptimalGenerator:
                                 )
 
                                 iterations_without_trajectory = 0
+                                if verbosity>=2:
+                                    print(f" -> inserted in position {len(prior_end_poses)}", end='\r')
+                            else:
+                                if verbosity>=2:
+                                    print(f" -> not minimal                              ", end='\r')
+                        else:
+                            if verbosity>=2:
+                                print(f" -> infeasible                              ", end='\r')
 
-            wave_front_cur_pos += 1
+                wave_front_cur_pos += 1
+            
+            # after the end of while
+            else:
+                if verbosity>=1:
+                    print(f"> Completed wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {iterations_without_trajectory} without new trajectories, moving on.\n")
+
+            
+        print(f'Completed generating minimal set for quadrant 1: {len(quadrant1_end_poses)} trajectories.\n')
 
         # Once we have found the minimal trajectory set for quadrant 1
         # we can leverage symmetry to create the complete minimal set
