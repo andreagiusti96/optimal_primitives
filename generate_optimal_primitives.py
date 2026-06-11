@@ -200,16 +200,16 @@ def save_visualizations(visualizations_folder: Path, minimal_set_trajectories: d
 
 if __name__ == '__main__':
 
-    print(f'Start Generating Primitives.')
-
     args = handle_arg_parsing()
     config = read_config(args.config)
+
+    print(f'Start generating primitives for model {config["motion_model"]} with parameters: \n{json.dumps(config, indent=4)}\n')
 
     start = time.time()
     optimal_gen = OptimalGenerator(config)
     minimal_set_trajectories = optimal_gen.run()
     total_trajectories = sum(len(trajs) for trajs in minimal_set_trajectories.values())
-    print(f'Finished Generating. Total {total_trajectories} trajectories from {len(minimal_set_trajectories)} start angles. \nTook {time.time() - start:.2f} seconds')
+    print(f'Finished generating. Total {total_trajectories} trajectories from {len(minimal_set_trajectories)} start angles. \nTook {time.time() - start:.2f} seconds')
 
     write_to_json(args.output, minimal_set_trajectories, config)
     save_visualizations(args.visualizations, minimal_set_trajectories)

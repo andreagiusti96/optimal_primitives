@@ -244,13 +244,15 @@ class OptimalGenerator:
         initial_headings = sorted(
             filter(lambda x: 0 <= x and x <= np.pi / 2, self.headings)
         )
+        print(f"Selected {len(initial_headings)} initial headings in the first quadrant.")
 
         # Use the minimum trajectory length to find the starting wave front
         min_trajectory_length = self._compute_min_trajectory_length()
         wave_front_start_pos = int(
             np.round(min_trajectory_length / self.grid_resolution)
         )
-        
+        print(f"Minimum trajectory length: {min_trajectory_length:.2f}, starting wave front position: {wave_front_start_pos}\n")
+  
         # for each initial heading angle
         for start_heading in initial_headings:
             iterations_without_trajectory = 0
@@ -273,9 +275,6 @@ class OptimalGenerator:
             iter_counter = 0
             while iterations_without_trajectory < self.stopping_threshold:
                 iter_counter += 1
-                if verbosity>=1:
-                    print(f"> Wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {iterations_without_trajectory} without new trajectories")
-
                 iterations_without_trajectory += 1
             
                 # Generate x,y coordinates for current wave front
@@ -338,15 +337,22 @@ class OptimalGenerator:
                             if verbosity>=2:
                                 print(f" -> infeasible                              ", end='\r')
 
+                total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
+                if verbosity>=1:
+                    print(f"> Wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {total_trajectories} trajectories")
+
+
+                # Move wave front out by one step
                 wave_front_cur_pos += 1
+                # END OF WHILE
             
-            # after the end of while
+            # after the end of while disp info
             else:
                 if verbosity>=1:
                     print(f"> Completed wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {iterations_without_trajectory} without new trajectories, moving on.\n")
 
-            
-        print(f'Completed generating minimal set for quadrant 1: {len(quadrant1_end_poses)} trajectories.\n')
+        total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
+        print(f'Completed generating minimal set for quadrant 1: {total_trajectories} trajectories from {len(quadrant1_end_poses)} start angles.\n')
 
         # Once we have found the minimal trajectory set for quadrant 1
         # we can leverage symmetry to create the complete minimal set
