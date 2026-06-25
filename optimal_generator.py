@@ -35,6 +35,9 @@ class OptimalGenerator:
         self.num_of_headings = config['num_of_headings']
         self.headings = \
             self._get_heading_discretization(config['num_of_headings'])
+            
+        self.max_wavefront_expansion = config['max_wavefront_expansion']
+        self.verbosity = config['verbosity']
         
         self.motion_model = self.MotionModel[config['motion_model'].upper()]
         
@@ -150,8 +153,9 @@ class OptimalGenerator:
         A trajectory is considered minimal if for every line segment in the trajectory, there does not exist any previously recorded end pose that is BOTH:
          - Spatially close: The perpendicular distance from the prior end pose to the line segment is less than DISTANCE_THRESHOLD (= 0.5 × grid_resolution)
          - Angularly similar: The angle difference between the segment's yaw and the prior end pose's yaw is less than ROTATION_THRESHOLD (= 0.5 × (2π / num_of_headings))
-
-        Uses an RTree for speedup.
+        I.e., a trajectory is redundant if any of its poses is sufficiently close to a previously recorded terminal pose.
+        
+        Prior end poses are saved in an RTree for speedup.
 
         Args:
         trajectory: Trajectory
@@ -238,10 +242,7 @@ class OptimalGenerator:
             A dictionary where the key is the start_angle and the value is
             a list of trajectories that begin at that angle
 
-        """
-        verbosity = 2
-        iter_counter_max = 3
-        
+        """        
         quadrant1_end_poses = defaultdict(list)
 
         # Since we only compute for quadrant 1 we only need headings between
@@ -278,9 +279,14 @@ class OptimalGenerator:
             )
             
             iter_counter = 0
-            while iterations_without_trajectory < self.stopping_threshold and iter_counter < iter_counter_max:
+            while iterations_without_trajectory < self.stopping_threshold and iter_counter < self.max_wavefront_expansion:
                 iter_counter += 1
                 iterations_without_trajectory += 1
+                
+                tested_trajs_counter = 0
+                newtrajs_counter = 0
+                redundant_counter = 0
+                infeasible_counter = 0
             
                 # Generate x,y coordinates for current wave front
                 positions = self._get_wave_front_points(wave_front_cur_pos)
@@ -290,7 +296,8 @@ class OptimalGenerator:
                     
                     # for each target heading that is within 90 degrees of the start heading
                     for target_heading in target_headings:
-                        if verbosity>=2:
+                        tested_trajs_counter += 1
+                        if self.verbosity >= 2:
                             print(f"  > [0.00, 0.00, {start_heading:.2f}] -> [{target_point[0]:.2f}, {target_point[1]:.2f}, {target_heading:.2f}]", end='')
                         
                         # Use 10% of grid separation for finer granularity
@@ -333,18 +340,22 @@ class OptimalGenerator:
                                 )
 
                                 iterations_without_trajectory = 0
-                                if verbosity>=2:
+                                newtrajs_counter += 1
+                                if self.verbosity >= 2:
                                     print(f" -> inserted in position {len(prior_end_poses)}", end='\n')
                             else:
-                                if verbosity>=2:
+                                redundant_counter += 1
+                                if self.verbosity >= 2:
                                     print(f" -> not minimal", end='\n')
                         else:
-                            if verbosity>=2:
+                            infeasible_counter += 1
+                            if self.verbosity >= 2:
                                 print(f" -> infeasible", end='\n')
 
                 total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
-                if verbosity>=1:
-                    print(f"> Wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {total_trajectories} trajectories")
+                if self.verbosity >= 1:
+                    print(f"> Iteration {iter_counter}: wave front = {wave_front_cur_pos * self.grid_resolution:.2f}, {total_trajectories} trajectories", end='\t')
+                    print(f"({tested_trajs_counter} tested: {newtrajs_counter} new, {redundant_counter} redundant, {infeasible_counter} infeasible)")
 
 
                 # Move wave front out by one step
@@ -352,7 +363,7 @@ class OptimalGenerator:
                 # END OF WHILE
             
             # after the end of while disp info
-            if verbosity>=1:
+            if self.verbosity >= 1:
                 print(f'Completed set {initial_headings.index(start_heading)+1}: initial heading = {start_heading:.2f} rad.' )
                 print(f"Terminal iteration {iter_counter}: wave front = {(wave_front_cur_pos-1) * self.grid_resolution:.2f}, {iterations_without_trajectory} iterations without new trajectories.\n")
 
