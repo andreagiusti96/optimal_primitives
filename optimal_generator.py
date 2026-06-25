@@ -146,7 +146,10 @@ class OptimalGenerator:
         self, trajectory: Trajectory, prior_end_poses: index.Rtree
     ) -> bool:
         """
-        Determine wheter a trajectory is a minimal trajectory.
+        Determine whether a trajectory is a minimal trajectory.
+        A trajectory is considered minimal if for every line segment in the trajectory, there does not exist any previously recorded end pose that is BOTH:
+         - Spatially close: The perpendicular distance from the prior end pose to the line segment is less than DISTANCE_THRESHOLD (= 0.5 × grid_resolution)
+         - Angularly similar: The angle difference between the segment's yaw and the prior end pose's yaw is less than ROTATION_THRESHOLD (= 0.5 × (2π / num_of_headings))
 
         Uses an RTree for speedup.
 
@@ -236,7 +239,9 @@ class OptimalGenerator:
             a list of trajectories that begin at that angle
 
         """
-        verbosity = 1
+        verbosity = 2
+        iter_counter_max = 3
+        
         quadrant1_end_poses = defaultdict(list)
 
         # Since we only compute for quadrant 1 we only need headings between
@@ -273,7 +278,7 @@ class OptimalGenerator:
             )
             
             iter_counter = 0
-            while iterations_without_trajectory < self.stopping_threshold:
+            while iterations_without_trajectory < self.stopping_threshold and iter_counter < iter_counter_max:
                 iter_counter += 1
                 iterations_without_trajectory += 1
             
@@ -329,13 +334,13 @@ class OptimalGenerator:
 
                                 iterations_without_trajectory = 0
                                 if verbosity>=2:
-                                    print(f" -> inserted in position {len(prior_end_poses)}", end='\r')
+                                    print(f" -> inserted in position {len(prior_end_poses)}", end='\n')
                             else:
                                 if verbosity>=2:
-                                    print(f" -> not minimal                              ", end='\r')
+                                    print(f" -> not minimal", end='\n')
                         else:
                             if verbosity>=2:
-                                print(f" -> infeasible                              ", end='\r')
+                                print(f" -> infeasible", end='\n')
 
                 total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
                 if verbosity>=1:
@@ -347,9 +352,9 @@ class OptimalGenerator:
                 # END OF WHILE
             
             # after the end of while disp info
-            else:
-                if verbosity>=1:
-                    print(f"> Completed wave front = {wave_front_cur_pos * self.grid_resolution:.2f}: iteration {iter_counter}, {iterations_without_trajectory} without new trajectories, moving on.\n")
+            if verbosity>=1:
+                print(f'Completed set {initial_headings.index(start_heading)+1}: initial heading = {start_heading:.2f} rad.' )
+                print(f"Terminal iteration {iter_counter}: wave front = {(wave_front_cur_pos-1) * self.grid_resolution:.2f}, {iterations_without_trajectory} iterations without new trajectories.\n")
 
         total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
         print(f'Completed generating minimal set for quadrant 1: {total_trajectories} trajectories from {len(quadrant1_end_poses)} start angles.\n')
@@ -411,6 +416,9 @@ class OptimalGenerator:
 
         """
         all_trajectories = defaultdict(list)
+        
+        total_trajectories = sum(len(trajs) for trajs in single_quadrant_minimal_set.values())
+        print(f'Creating complete spanning set from {total_trajectories} trajectories in quadrant 1...')
 
         for start_angle in single_quadrant_minimal_set.keys():
 
@@ -727,5 +735,12 @@ class OptimalGenerator:
 
         """
         complete_spanning_set = self._generate_minimal_spanning_set()
+        total_trajectories = sum(len(trajs) for trajs in complete_spanning_set.values())
+        print(f'Completed generating complete spanning set: {total_trajectories} trajectories.\n')
 
-        return self._handle_motion_model(complete_spanning_set)
+        print(f'Augmenting spanning set for motion model: {self.motion_model} ...')
+        extended_spanning_set = self._handle_motion_model(complete_spanning_set)
+        total_trajectories = sum(len(trajs) for trajs in extended_spanning_set.values())
+        print(f'Completed generating augmented spanning set: {total_trajectories} trajectories.\n')
+        
+        return extended_spanning_set 

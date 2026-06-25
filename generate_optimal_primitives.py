@@ -36,14 +36,8 @@ def handle_arg_parsing():
                         'parameters to be used')
     parser.add_argument('--output',
                         type=Path,
-                        default='./output.json',
-                        help='The output file containing the '
-                        'trajectory data')
-    parser.add_argument('--visualizations',
-                        type=Path,
-                        default='./visualizations',
-                        help='The output folder where the '
-                        'visualizations of the trajectories will be saved')
+                        default='./outputs',
+                        help='The output folder')
 
     return parser.parse_args()
 
@@ -166,6 +160,7 @@ def save_visualizations(visualizations_folder: Path, minimal_set_trajectories: d
     # Create the directory if it doesnt exist
     visualizations_folder.mkdir(exist_ok=True)
 
+    # All trajectories in one image
     for start_angle in minimal_set_trajectories.keys():
 
         for trajectory in minimal_set_trajectories[start_angle]:
@@ -175,11 +170,14 @@ def save_visualizations(visualizations_folder: Path, minimal_set_trajectories: d
     plt.axis('square')
     left_x, right_x = plt.xlim()
     left_y, right_y = plt.ylim()
+    total_trajectories = sum(len(trajs) for trajs in minimal_set_trajectories.values())
+    plt.title(f'{total_trajectories} trajectories')
 
-    output_path = visualizations_folder / 'all_trajectories.png'
+    output_path = visualizations_folder / 'primitives_all.png'
     plt.savefig(output_path)
     plt.clf()
 
+    # Trajectories per starting angle
     for start_angle in minimal_set_trajectories.keys():
 
         angle_in_deg = np.rad2deg(start_angle)
@@ -193,8 +191,10 @@ def save_visualizations(visualizations_folder: Path, minimal_set_trajectories: d
             plt.ylim(left_y, right_y)
 
         plt.grid(True)
+        plt.axis('square')
+        plt.title(f'{len(minimal_set_trajectories[start_angle])} trajectories from start angle = {angle_in_deg:.1f}deg')
 
-        output_path = visualizations_folder / f'{angle_in_deg}.png'
+        output_path = visualizations_folder / f'primitives_ang{angle_in_deg:.1f}.png'
         plt.savefig(output_path)
         plt.clf()
 
@@ -208,8 +208,19 @@ if __name__ == '__main__':
     start = time.time()
     optimal_gen = OptimalGenerator(config)
     minimal_set_trajectories = optimal_gen.run()
+    
     total_trajectories = sum(len(trajs) for trajs in minimal_set_trajectories.values())
-    print(f'Finished generating. Total {total_trajectories} trajectories from {len(minimal_set_trajectories)} start angles. \nTook {time.time() - start:.2f} seconds')
+    print(f'Finished generating primitives for model {config["motion_model"]}. Total {total_trajectories} trajectories from {len(minimal_set_trajectories)} start angles. \nTook {time.time() - start:.2f} seconds')
 
-    write_to_json(args.output, minimal_set_trajectories, config)
-    save_visualizations(args.visualizations, minimal_set_trajectories)
+    # Create output directories and save results
+    base_outputs_dir = args.output
+    base_outputs_dir.mkdir(exist_ok=True)
+    output_dir = base_outputs_dir / f'{config["motion_model"]}_primitives'
+    output_dir.mkdir(exist_ok=True)
+    output_file = output_dir / 'primitives.json'
+    figures_dir = output_dir / 'figures'
+    figures_dir.mkdir(exist_ok=True)
+    write_to_json(output_file, minimal_set_trajectories, config)
+    save_visualizations(figures_dir, minimal_set_trajectories)
+    
+    print(f'Output written to {output_file}.\nVisualizations saved to {figures_dir}.')
