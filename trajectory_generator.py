@@ -174,7 +174,6 @@ class TrajectoryGenerator:
         current_X = vertcat(0.0,0.0,start_angle,0.0,0.0)
 
         if self.motion_model == self.MotionModel.ACKERMANN:
-            print("bicycle")
             xs, ys, yaws, length = bicycle_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc, self.wheelbase, self.max_steer_ang)
             
         elif self.motion_model == self.MotionModel.DIFF:

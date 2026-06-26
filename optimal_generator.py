@@ -35,6 +35,9 @@ class OptimalGenerator:
         self.num_of_headings = config['num_of_headings']
         self.headings = \
             self._get_heading_discretization(config['num_of_headings'])
+            
+        self.max_wavefront_expansion = config['max_wavefront_expansion']
+        self.verbosity = config['verbosity']
         
         self.motion_model = self.MotionModel[config['motion_model'].upper()]
         
@@ -146,9 +149,13 @@ class OptimalGenerator:
         self, trajectory: Trajectory, prior_end_poses: index.Rtree
     ) -> bool:
         """
-        Determine wheter a trajectory is a minimal trajectory.
-
-        Uses an RTree for speedup.
+        Determine whether a trajectory is a minimal trajectory.
+        A trajectory is considered minimal if for every line segment in the trajectory, there does not exist any previously recorded end pose that is BOTH:
+         - Spatially close: The perpendicular distance from the prior end pose to the line segment is less than DISTANCE_THRESHOLD (= 0.5 × grid_resolution)
+         - Angularly similar: The angle difference between the segment's yaw and the prior end pose's yaw is less than ROTATION_THRESHOLD (= 0.5 × (2π / num_of_headings))
+        I.e., a trajectory is redundant if any of its poses is sufficiently close to a previously recorded terminal pose.
+        
+        Prior end poses are saved in an RTree for speedup.
 
         Args:
         trajectory: Trajectory
@@ -235,7 +242,7 @@ class OptimalGenerator:
             A dictionary where the key is the start_angle and the value is
             a list of trajectories that begin at that angle
 
-        """
+        """        
         quadrant1_end_poses = defaultdict(list)
 
         # Since we only compute for quadrant 1 we only need headings between
@@ -243,17 +250,20 @@ class OptimalGenerator:
         initial_headings = sorted(
             filter(lambda x: 0 <= x and x <= np.pi / 2, self.headings)
         )
+        print(f"Selected {len(initial_headings)} initial headings in the first quadrant.")
 
         # Use the minimum trajectory length to find the starting wave front
         min_trajectory_length = self._compute_min_trajectory_length()
         wave_front_start_pos = int(
             np.round(min_trajectory_length / self.grid_resolution)
         )
-        
+        print(f"Minimum trajectory length: {min_trajectory_length:.2f}, starting wave front position: {wave_front_start_pos}\n")
+  
+        # for each initial heading angle
         for start_heading in initial_headings:
             iterations_without_trajectory = 0
 
-            print(f'Generating set {initial_headings.index(start_heading)+1} of {len(initial_headings)}' )
+            print(f'Generating set {initial_headings.index(start_heading)+1} of {len(initial_headings)}: initial heading = {start_heading:.2f} rad' )
 
             prior_end_poses = index.Index()
 
@@ -267,20 +277,34 @@ class OptimalGenerator:
             target_headings = list(
                 filter(lambda x: abs(start_heading - x) <= np.pi / 2, target_headings)
             )
-            while iterations_without_trajectory < self.stopping_threshold:
+            
+            iter_counter = 0
+            while iterations_without_trajectory < self.stopping_threshold and iter_counter < self.max_wavefront_expansion:
+                iter_counter += 1
                 iterations_without_trajectory += 1
+                
+                tested_trajs_counter = 0
+                newtrajs_counter = 0
+                redundant_counter = 0
+                infeasible_counter = 0
             
                 # Generate x,y coordinates for current wave front
                 positions = self._get_wave_front_points(wave_front_cur_pos)
 
+                # for each target position in the first quadrant
                 for target_point in positions:
-
+                    
+                    # for each target heading that is within 90 degrees of the start heading
                     for target_heading in target_headings:
+                        tested_trajs_counter += 1
+                        if self.verbosity >= 2:
+                            print(f"  > [0.00, 0.00, {start_heading:.2f}] -> [{target_point[0]:.2f}, {target_point[1]:.2f}, {target_heading:.2f}]", end='')
+                        
                         # Use 10% of grid separation for finer granularity
                         # when checking if trajectory overlaps another already
                         # seen trajectory
 
-
+                        # Generate optimal trajectory from start to target
                         trajectory = self.trajectory_generator.generate_trajectory(
                             target_point,
                             start_heading,
@@ -316,8 +340,35 @@ class OptimalGenerator:
                                 )
 
                                 iterations_without_trajectory = 0
+                                newtrajs_counter += 1
+                                if self.verbosity >= 2:
+                                    print(f" -> inserted in position {len(prior_end_poses)}", end='\n')
+                            else:
+                                redundant_counter += 1
+                                if self.verbosity >= 2:
+                                    print(f" -> not minimal", end='\n')
+                        else:
+                            infeasible_counter += 1
+                            if self.verbosity >= 2:
+                                print(f" -> infeasible", end='\n')
 
-            wave_front_cur_pos += 1
+                total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
+                if self.verbosity >= 1:
+                    print(f"> Iteration {iter_counter}: wave front = {wave_front_cur_pos * self.grid_resolution:.2f}, {total_trajectories} trajectories", end='\t')
+                    print(f"({tested_trajs_counter} tested: {newtrajs_counter} new, {redundant_counter} redundant, {infeasible_counter} infeasible)")
+
+
+                # Move wave front out by one step
+                wave_front_cur_pos += 1
+                # END OF WHILE
+            
+            # after the end of while disp info
+            if self.verbosity >= 1:
+                print(f'Completed set {initial_headings.index(start_heading)+1}: initial heading = {start_heading:.2f} rad.' )
+                print(f"Terminal iteration {iter_counter}: wave front = {(wave_front_cur_pos-1) * self.grid_resolution:.2f}, {iterations_without_trajectory} iterations without new trajectories.\n")
+
+        total_trajectories = sum(len(trajs) for trajs in quadrant1_end_poses.values())
+        print(f'Completed generating minimal set for quadrant 1: {total_trajectories} trajectories from {len(quadrant1_end_poses)} start angles.\n')
 
         # Once we have found the minimal trajectory set for quadrant 1
         # we can leverage symmetry to create the complete minimal set
@@ -376,6 +427,9 @@ class OptimalGenerator:
 
         """
         all_trajectories = defaultdict(list)
+        
+        total_trajectories = sum(len(trajs) for trajs in single_quadrant_minimal_set.values())
+        print(f'Creating complete spanning set from {total_trajectories} trajectories in quadrant 1...')
 
         for start_angle in single_quadrant_minimal_set.keys():
 
@@ -692,5 +746,12 @@ class OptimalGenerator:
 
         """
         complete_spanning_set = self._generate_minimal_spanning_set()
+        total_trajectories = sum(len(trajs) for trajs in complete_spanning_set.values())
+        print(f'Completed generating complete spanning set: {total_trajectories} trajectories.\n')
 
-        return self._handle_motion_model(complete_spanning_set)
+        print(f'Augmenting spanning set for motion model: {self.motion_model} ...')
+        extended_spanning_set = self._handle_motion_model(complete_spanning_set)
+        total_trajectories = sum(len(trajs) for trajs in extended_spanning_set.values())
+        print(f'Completed generating augmented spanning set: {total_trajectories} trajectories.\n')
+        
+        return extended_spanning_set 
