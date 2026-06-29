@@ -1,6 +1,6 @@
 # Tasks Document
 
-- [ ] 1. Add curvature utilities in helper layer
+- [x] 1. Add curvature utilities in helper layer
   - File: helper.py
   - Implement `compute_curvature_samples(xs, ys, yaws)` for per-sample curvature derivation.
   - Implement validation helpers for finite values and sample-length consistency.
@@ -9,7 +9,7 @@
   - _Requirements: 1.1, 2.1, 3.3, NFR Reliability_
   - _Prompt: Role: Python Numerical Developer | Task: Implement robust curvature calculation and validation helpers in helper.py using NumPy and existing helper conventions | Restrictions: Do not change existing helper signatures used elsewhere, keep deterministic behavior, avoid adding new dependencies | Success: Curvature utility returns stable arrays aligned with pose samples and validation catches malformed data._
 
-- [ ] 2. Extend trajectory path model with curvature storage
+- [x] 2. Extend trajectory path model with curvature storage
   - File: trajectory.py
   - Extend `Path` dataclass to include `kappas` aligned with `xs`, `ys`, `yaws`.
   - Extend `Path.to_output_format(...)` to emit curvature-enabled pose samples `[x, y, yaw, curvature]` with legacy-read compatibility.
@@ -18,7 +18,7 @@
   - _Requirements: 1.1, 1.2, 3.3_
   - _Prompt: Role: Python Data Model Engineer | Task: Update Path model to include curvature arrays and output formatting that supports 4-value samples | Restrictions: Preserve existing consumers as much as possible, keep rounding/normalization conventions, ensure no NaN/Inf in serialized values | Success: Path stores and exports curvature consistently with sample-aligned arrays._
 
-- [ ] 3. Compute curvature in trajectory generation flow
+- [x] 3. Compute curvature in trajectory generation flow
   - File: trajectory_generator.py
   - After solver sampling of x/y/yaw, compute curvature using helper utility.
   - Apply model-specific fallback/clamp policy where required.
@@ -28,7 +28,7 @@
   - _Requirements: 1.1, 2.1, 2.2, 4.1_
   - _Prompt: Role: Motion Planning Backend Developer | Task: Integrate curvature computation into trajectory generation for Ackermann, Diff, and Omni modes | Restrictions: Do not alter solver problem setup in bicycle_acc/unicycle_acc/omni_acc beyond needed integration, keep runtime overhead low | Success: All generated Path instances include valid curvature arrays across supported models._
 
-- [ ] 4. Add curvature metadata and schema fields to JSON writer
+- [x] 4. Add curvature metadata and schema fields to JSON writer
   - File: generate_optimal_primitives.py
   - Extend header metadata with `num_of_curvatures` and `curvatures` catalog.
   - Add per-primitive fields: `start_curvature`, `end_curvature`, `start_curvature_index`, `end_curvature_index`.
@@ -38,7 +38,7 @@
   - _Requirements: 1.2, 2.1, 3.1, 3.2, 4.3_
   - _Prompt: Role: Python Serialization Engineer | Task: Update JSON serialization to match sample_primitives/ackermann_with_curvature.json schema including curvature catalog and index mapping | Restrictions: Preserve existing non-curvature primitive fields, maintain deterministic ordering, avoid breaking metadata semantics | Success: Output JSON includes required curvature metadata and primitive fields with correct indexing._
 
-- [ ] 5. Implement schema consistency guards before output write
+- [x] 5. Implement schema consistency guards before output write
   - File: generate_optimal_primitives.py
   - Validate pose length (4 values), start/end curvature equality with first/last sample, and index-to-catalog mapping.
   - Validate `num_of_curvatures == len(curvatures)`.
@@ -47,7 +47,7 @@
   - _Requirements: 3.3, 4.2, NFR Reliability_
   - _Prompt: Role: Defensive Programming Specialist | Task: Add strict schema validation checks and clear error messages before writing primitives.json | Restrictions: Fail fast with actionable diagnostics, do not silently repair corrupt trajectories in strict mode | Success: Invalid schema states are detected and reported before file emission._
 
-- [ ] 6. Add compatibility mode behavior for legacy primitive handling
+- [x] 6. Add compatibility mode behavior for legacy primitive handling
   - Files: generate_optimal_primitives.py, README.md
   - Define and implement behavior when curvature is missing (default/infer mode vs strict mode).
   - Document strict mode failure semantics and fallback policy.
@@ -56,7 +56,7 @@
   - _Requirements: 1.3, 4.1, 4.2_
   - _Prompt: Role: Backend Compatibility Engineer | Task: Introduce documented compatibility/strict handling for curvature absence and enforce predictable behavior | Restrictions: Do not remove existing fields, keep defaults safe, ensure explicit errors in strict mode | Success: Legacy files remain consumable in compatibility mode and strict mode fails with clear messages._
 
-- [ ] 7. Add configuration keys for curvature policy and bounds
+- [x] 7. Add configuration keys for curvature policy and bounds
   - Files: config.json, config_ackermann.json, config_diff.json, config_omni.json
   - Add keys for curvature enablement, fallback policy, and optional model-specific bounds.
   - Purpose: Make curvature behavior configurable without source edits.
@@ -64,7 +64,7 @@
   - _Requirements: 2.2, NFR Usability, NFR Code Architecture_
   - _Prompt: Role: Configuration Engineer | Task: Extend config files and parser assumptions with curvature policy fields compatible with current workflows | Restrictions: Keep defaults backward-compatible, avoid mandatory new keys for existing runs unless safe defaults are provided | Success: Curvature behavior is configurable and existing configs continue to work._
 
-- [ ] 8. Update documentation with explicit curvature contract
+- [x] 8. Update documentation with explicit curvature contract
   - Files: README.md, .spec-workflow/specs/primitives-curvature/design.md (if needed for parity notes)
   - Document curvature units, sign convention, metadata fields, and primitive sample format.
   - Add example mapping to sample schema (`sample_primitives/ackermann_with_curvature.json`).

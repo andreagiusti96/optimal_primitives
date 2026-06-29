@@ -125,3 +125,67 @@ def get_rotation_matrix(angle):
     """
     return np.array([[np.cos(angle), -np.sin(angle)],
                     [np.sin(angle), np.cos(angle)]])
+
+
+def compute_curvature_samples(xs, ys, yaws):
+    """
+    Compute signed curvature samples aligned with input pose samples.
+
+    Curvature is approximated as d(theta)/ds over consecutive samples.
+
+    Args:
+    xs, ys, yaws: array-like
+        Sampled trajectory state arrays of equal length.
+
+    Returns
+    -------
+    np.ndarray
+        Curvature values (1/m), same length as input arrays.
+
+    """
+    xs = np.asarray(xs, dtype=float)
+    ys = np.asarray(ys, dtype=float)
+    yaws = np.asarray(yaws, dtype=float)
+
+    if xs.size != ys.size or xs.size != yaws.size:
+        raise ValueError('xs, ys, and yaws must have identical lengths')
+
+    if xs.size == 0:
+        return np.array([], dtype=float)
+
+    if xs.size == 1:
+        return np.array([0.0], dtype=float)
+
+    dx = np.diff(xs)
+    dy = np.diff(ys)
+    ds = np.hypot(dx, dy)
+
+    # Wrapped heading difference in [-pi, pi]
+    dtheta = np.arctan2(np.sin(np.diff(yaws)), np.cos(np.diff(yaws)))
+
+    segment_curvature = np.zeros_like(ds)
+    valid = ds > 1e-9
+    segment_curvature[valid] = dtheta[valid] / ds[valid]
+
+    kappas = np.zeros_like(xs)
+    kappas[0] = segment_curvature[0]
+    kappas[-1] = segment_curvature[-1]
+
+    if xs.size > 2:
+        kappas[1:-1] = 0.5 * (segment_curvature[:-1] + segment_curvature[1:])
+
+    return kappas
+
+
+def validate_curvature_samples(xs, ys, yaws, kappas):
+    """Validate curvature array alignment and numeric sanity."""
+    xs = np.asarray(xs)
+    ys = np.asarray(ys)
+    yaws = np.asarray(yaws)
+    kappas = np.asarray(kappas)
+
+    if xs.size != ys.size or xs.size != yaws.size or xs.size != kappas.size:
+        raise ValueError('Curvature samples must align with xs/ys/yaws lengths')
+
+    if not np.all(np.isfinite(kappas)):
+        raise ValueError('Curvature samples contain non-finite values')

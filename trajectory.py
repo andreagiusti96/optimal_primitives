@@ -50,6 +50,7 @@ class Path:
     xs: np.array
     ys: np.array
     yaws: np.array
+    kappas: np.array = None
 
     def __add__(self, rhs):
         """Add two paths together by concatenating them."""
@@ -60,9 +61,13 @@ class Path:
         ys = np.concatenate((self.ys, rhs.ys))
         yaws = np.concatenate((self.yaws, rhs.yaws))
 
-        return Path(xs, ys, yaws)
+        kappas = None
+        if self.kappas is not None and rhs.kappas is not None:
+            kappas = np.concatenate((self.kappas, rhs.kappas))
 
-    def to_output_format(self):
+        return Path(xs, ys, yaws, kappas)
+
+    def to_output_format(self, include_curvature=True):
         """Return the path data in a format suitable for outputting."""
         output_xs = self.xs.round(5)
         output_ys = self.ys.round(5)
@@ -75,7 +80,11 @@ class Path:
         vectorized_normalize_angle = np.vectorize(normalize_angle)
         output_yaws = vectorized_normalize_angle(output_yaws)
 
-        stacked = np.vstack([output_xs, output_ys, output_yaws]).transpose()
+        if include_curvature and self.kappas is not None:
+            output_kappas = self.kappas.round(12) + 0.0
+            stacked = np.vstack([output_xs, output_ys, output_yaws, output_kappas]).transpose()
+        else:
+            stacked = np.vstack([output_xs, output_ys, output_yaws]).transpose()
 
         return stacked.tolist()
 

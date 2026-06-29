@@ -12,7 +12,7 @@ import omni_acc
 
 from casadi import *
 
-from helper import normalize_angle
+from helper import compute_curvature_samples, normalize_angle, validate_curvature_samples
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,10 @@ class TrajectoryGenerator:
         ys[-1] = y2
         yaws[-1] = end_angle
 
-        return Path(xs, ys, yaws), length
+        kappas = compute_curvature_samples(xs, ys, yaws)
+        validate_curvature_samples(xs, ys, yaws, kappas)
+
+        return Path(xs, ys, yaws, kappas), length
 
     def _get_intersection_point(
         self, m1: float, c1: float, m2: float, c2: float

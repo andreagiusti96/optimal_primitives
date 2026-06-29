@@ -59,6 +59,13 @@ def read_config(config_path) -> dict:
     with open(config_path) as config_file:
         config = json.load(config_file)
 
+    # Curvature defaults keep existing configs backward-compatible.
+    config.setdefault('curvature_enabled', True)
+    config.setdefault('curvature_mode', 'strict')
+    config.setdefault('curvature_fallback_policy', 'zero')
+    config.setdefault('curvature_min', None)
+    config.setdefault('curvature_max', None)
+
     return config
 
 def create_heading_angle_list(minimal_set_trajectories: dict) -> list:
@@ -79,7 +86,19 @@ def create_heading_angle_list(minimal_set_trajectories: dict) -> list:
     heading_angles = set(minimal_set_trajectories.keys())
     return sorted(heading_angles, key=lambda x: (x < 0, x))
 
-def create_header(config: dict) -> dict:
+
+def create_curvature_catalog(minimal_set_trajectories: dict) -> list:
+    """Create a sorted list of unique start/end curvature values."""
+    curvatures = set()
+    for trajectories in minimal_set_trajectories.values():
+        for trajectory in trajectories:
+            if trajectory.path.kappas is None or len(trajectory.path.kappas) == 0:
+                continue
+            curvatures.add(round(float(trajectory.path.kappas[0]), 12))
+            curvatures.add(round(float(trajectory.path.kappas[-1]), 12))
+    return sorted(curvatures)
+
+def create_header(config: dict, minimal_set_trajectories: dict) -> dict:
 
     header_dict = {
         'version': constants.VERSION,
@@ -96,11 +115,69 @@ def create_header(config: dict) -> dict:
 
     header_dict['lattice_metadata']['heading_angles'] = adjusted_heading_angles
 
+    curvature_catalog = create_curvature_catalog(minimal_set_trajectories)
+    header_dict['lattice_metadata']['num_of_curvatures'] = len(curvature_catalog)
+    header_dict['lattice_metadata']['curvatures'] = curvature_catalog
+
     return header_dict
+
+
+def validate_curvature_contract(traj_info: dict, curvature_catalog: list, strict_mode: bool = True):
+    """Validate required curvature schema fields before output write."""
+    poses = traj_info.get('poses', [])
+    if not poses:
+        if not strict_mode:
+            return
+        raise ValueError(f"Trajectory {traj_info['trajectory_id']} has empty poses")
+
+    for pose in poses:
+        if len(pose) != 4:
+            if not strict_mode:
+                return
+            raise ValueError(
+                f"Trajectory {traj_info['trajectory_id']} has pose with length {len(pose)}; expected 4"
+            )
+
+    start_pose_curvature = round(float(poses[0][3]), 12)
+    end_pose_curvature = round(float(poses[-1][3]), 12)
+
+    if round(float(traj_info['start_curvature']), 12) != start_pose_curvature:
+        if not strict_mode:
+            return
+        raise ValueError(f"Trajectory {traj_info['trajectory_id']} start curvature mismatch")
+
+    if round(float(traj_info['end_curvature']), 12) != end_pose_curvature:
+        if not strict_mode:
+            return
+        raise ValueError(f"Trajectory {traj_info['trajectory_id']} end curvature mismatch")
+
+    if curvature_catalog[traj_info['start_curvature_index']] != round(float(traj_info['start_curvature']), 12):
+        if not strict_mode:
+            return
+        raise ValueError(f"Trajectory {traj_info['trajectory_id']} start curvature index mismatch")
+
+    if curvature_catalog[traj_info['end_curvature_index']] != round(float(traj_info['end_curvature']), 12):
+        if not strict_mode:
+            return
+        raise ValueError(f"Trajectory {traj_info['trajectory_id']} end curvature index mismatch")
 
 def write_to_json(output_path: Path, minimal_set_trajectories: dict, config: dict):
 
-    output_dict = create_header(config)
+    strict_mode = config.get('curvature_mode', 'strict') == 'strict'
+
+    output_dict = create_header(config, minimal_set_trajectories)
+
+    curvature_catalog = output_dict['lattice_metadata']['curvatures']
+    if output_dict['lattice_metadata']['num_of_curvatures'] != len(curvature_catalog):
+        if not strict_mode:
+            output_dict['lattice_metadata']['num_of_curvatures'] = len(curvature_catalog)
+        else:
+            raise ValueError('num_of_curvatures does not match size of curvature catalog')
+
+    curvature_lookup = {
+        round(float(curvature), 12): idx
+        for idx, curvature in enumerate(curvature_catalog)
+    }
 
     trajectory_start_angles = list(minimal_set_trajectories.keys())
 
@@ -135,7 +212,24 @@ def write_to_json(output_path: Path, minimal_set_trajectories: dict, config: dic
                 trajectory.parameters.straight_length,
                 5,
             )
-            traj_info['poses'] = trajectory.path.to_output_format()
+            traj_info['poses'] = trajectory.path.to_output_format(include_curvature=True)
+
+            start_curvature = round(float(trajectory.path.kappas[0]), 12)
+            end_curvature = round(float(trajectory.path.kappas[-1]), 12)
+
+            if start_curvature not in curvature_lookup or end_curvature not in curvature_lookup:
+                if not strict_mode:
+                    continue
+                raise ValueError(
+                    f"Trajectory {idx} curvature not found in lattice curvature catalog"
+                )
+
+            traj_info['start_curvature'] = start_curvature
+            traj_info['end_curvature'] = end_curvature
+            traj_info['start_curvature_index'] = curvature_lookup[start_curvature]
+            traj_info['end_curvature_index'] = curvature_lookup[end_curvature]
+
+            validate_curvature_contract(traj_info, curvature_catalog, strict_mode=strict_mode)
 
             output_dict['primitives'].append(traj_info)
             idx += 1

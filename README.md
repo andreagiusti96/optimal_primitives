@@ -72,6 +72,25 @@ Maximum Longitudinal acceleration
 
 Maximum Angular acceleration   
 
+**curvature_enabled (bool)**
+
+Enable writing curvature as an additional dimension in each pose sample.
+
+**curvature_mode (string)**
+
+Curvature validation behavior. Accepted values:
+
+- strict: fail generation if curvature schema consistency checks fail
+- compatibility: continue with best-effort behavior for legacy/mismatched curvature data
+
+**curvature_fallback_policy (string)**
+
+Fallback policy when curvature cannot be computed reliably for a sample. Current supported value: zero.
+
+**curvature_min / curvature_max (float | null)**
+
+Optional bounds for curvature post-processing. Use null to disable explicit clamping.
+
 
 ## Output file structure
 The motion primitives are stored in the JSON output file as required by Nav2 smac planner and contains the following fields: 
@@ -112,6 +131,10 @@ A dictionary that contains information about the generated lattice. Most of this
 
 - max_ang_acc
 
+- num_of_curvatures : Number of unique curvature values used as global catalog
+
+- curvatures : Sorted list of unique curvature values used for index mapping
+
 ## Primitives 
 
 A list of dictionaries where each dictionary represents an individual motion primitive. Each motion primitive contains the following fields: 
@@ -133,7 +156,17 @@ A list of dictionaries where each dictionary represents an individual motion pri
 - straight_length (meters) : The length of the straight line portion of a primitive. straight_length is 0 if the primitive is a pure arc. 
 poses. *TODO*: this value is not currently used.
 
-- A list where each entry is a list containing three values: x, y, and yaw (radians) 
+- poses : A list where each entry is a list containing four values: x, y, yaw (radians), and curvature (1/m)
+
+- start_curvature : Curvature value at the first pose sample
+
+- end_curvature : Curvature value at the last pose sample
+
+- start_curvature_index : Index of start_curvature in lattice_metadata.curvatures
+
+- end_curvature_index : Index of end_curvature in lattice_metadata.curvatures
+
+Curvature-enabled output schema follows the same contract as `sample_primitives/ackermann_with_curvature.json`.
 
 ## Angle Discretization and Trajectory Generator 
 
