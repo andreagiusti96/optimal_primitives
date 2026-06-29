@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "pimzino/spec-workflow-mcp": {
+      "type": "stdio",
+      "command": "spec-workflow-mcp",
+      "args": [
+        "${workspaceFolder}"
+      ]
+    }
+  }
+}
