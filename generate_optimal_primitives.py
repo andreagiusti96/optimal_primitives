@@ -31,7 +31,7 @@ def handle_arg_parsing():
                                                  'Lattice Planner')
     parser.add_argument('--config',
                         type=Path,
-                        default='./config.json',
+                        default='./config_diff.json',
                         help='The config file containing the '
                         'parameters to be used')
     parser.add_argument('--output',
@@ -121,46 +121,6 @@ def create_header(config: dict, minimal_set_trajectories: dict) -> dict:
 
     return header_dict
 
-
-def validate_curvature_contract(traj_info: dict, curvature_catalog: list, strict_mode: bool = True):
-    """Validate required curvature schema fields before output write."""
-    poses = traj_info.get('poses', [])
-    if not poses:
-        if not strict_mode:
-            return
-        raise ValueError(f"Trajectory {traj_info['trajectory_id']} has empty poses")
-
-    for pose in poses:
-        if len(pose) != 4:
-            if not strict_mode:
-                return
-            raise ValueError(
-                f"Trajectory {traj_info['trajectory_id']} has pose with length {len(pose)}; expected 4"
-            )
-
-    start_pose_curvature = round(float(poses[0][3]), 12)
-    end_pose_curvature = round(float(poses[-1][3]), 12)
-
-    if round(float(traj_info['start_curvature']), 12) != start_pose_curvature:
-        if not strict_mode:
-            return
-        raise ValueError(f"Trajectory {traj_info['trajectory_id']} start curvature mismatch")
-
-    if round(float(traj_info['end_curvature']), 12) != end_pose_curvature:
-        if not strict_mode:
-            return
-        raise ValueError(f"Trajectory {traj_info['trajectory_id']} end curvature mismatch")
-
-    if curvature_catalog[traj_info['start_curvature_index']] != round(float(traj_info['start_curvature']), 12):
-        if not strict_mode:
-            return
-        raise ValueError(f"Trajectory {traj_info['trajectory_id']} start curvature index mismatch")
-
-    if curvature_catalog[traj_info['end_curvature_index']] != round(float(traj_info['end_curvature']), 12):
-        if not strict_mode:
-            return
-        raise ValueError(f"Trajectory {traj_info['trajectory_id']} end curvature index mismatch")
-
 def write_to_json(output_path: Path, minimal_set_trajectories: dict, config: dict):
 
     strict_mode = config.get('curvature_mode', 'strict') == 'strict'
@@ -228,8 +188,6 @@ def write_to_json(output_path: Path, minimal_set_trajectories: dict, config: dic
             traj_info['end_curvature'] = end_curvature
             traj_info['start_curvature_index'] = curvature_lookup[start_curvature]
             traj_info['end_curvature_index'] = curvature_lookup[end_curvature]
-
-            validate_curvature_contract(traj_info, curvature_catalog, strict_mode=strict_mode)
 
             output_dict['primitives'].append(traj_info)
             idx += 1

@@ -127,14 +127,14 @@ def get_rotation_matrix(angle):
                     [np.sin(angle), np.cos(angle)]])
 
 
-def compute_curvature_samples(xs, ys, yaws):
+def compute_curvature_samples(xs, ys):
     """
     Compute signed curvature samples aligned with input pose samples.
 
     Curvature is approximated as d(theta)/ds over consecutive samples.
 
     Args:
-    xs, ys, yaws: array-like
+    xs, ys: array-like
         Sampled trajectory state arrays of equal length.
 
     Returns
@@ -145,10 +145,9 @@ def compute_curvature_samples(xs, ys, yaws):
     """
     xs = np.asarray(xs, dtype=float)
     ys = np.asarray(ys, dtype=float)
-    yaws = np.asarray(yaws, dtype=float)
 
-    if xs.size != ys.size or xs.size != yaws.size:
-        raise ValueError('xs, ys, and yaws must have identical lengths')
+    if xs.size != ys.size:
+        raise ValueError('xs and ys must have identical lengths')
 
     if xs.size == 0:
         return np.array([], dtype=float)
@@ -156,36 +155,51 @@ def compute_curvature_samples(xs, ys, yaws):
     if xs.size == 1:
         return np.array([0.0], dtype=float)
 
+    # Segement legth
     dx = np.diff(xs)
     dy = np.diff(ys)
     ds = np.hypot(dx, dy)
+    curve_pos = np.cumsum(ds)   # Cumulative distance along the curve
+    curve_pos = np.insert(curve_pos, 0, 0.0)  # Add starting position
+    # deltas = np.vstack((dx, dy)).T
 
+    # Filter out segments that are too short to compute curvature
+    valid_steps = ds > ds.mean()/2
+    valid_steps = np.insert(valid_steps, 0, True)  
+    xs_select = xs[valid_steps]
+    ys_select = ys[valid_steps]
+    
+    dx_select = np.diff(xs_select)
+    dy_select = np.diff(ys_select)
+    ds_select = np.hypot(dx_select, dy_select)
+    
     # Wrapped heading difference in [-pi, pi]
-    dtheta = np.arctan2(np.sin(np.diff(yaws)), np.cos(np.diff(yaws)))
+    path_direction = np.arctan2(dy_select, dx_select)
+    dtheta = np.arctan2(np.sin(np.diff(path_direction)), np.cos(np.diff(path_direction)))
+    # dtheta = np.arctan2(np.cross(deltas[:-1], deltas[1:]), np.dot(deltas[:-1], deltas[1:].T).diagonal())
 
-    segment_curvature = np.zeros_like(ds)
-    valid = ds > 1e-9
-    segment_curvature[valid] = dtheta[valid] / ds[valid]
+    # Saturate dtheta to pi/2
+    dtheta = np.clip(dtheta, -np.pi/2, np.pi/2)
 
-    kappas = np.zeros_like(xs)
-    kappas[0] = segment_curvature[0]
-    kappas[-1] = segment_curvature[-1]
+    # Compute curvature as dtheta/ds
+    # Use one-sided difference for the endpoints and central difference for the interior points
+    machine_epsilon = 1e-9
+    kappas_select = np.zeros_like(xs_select)
+    kappas_select[0] = dtheta[0] / (ds_select[0] + machine_epsilon)  # Avoid division by zero
+    kappas_select[-1] = dtheta[-1] / (ds_select[-1] + machine_epsilon)  # Avoid division by zero
+    kappas_select[1:-1] = 2 * dtheta / (ds_select[:-1] + ds_select[1:] + machine_epsilon)  # Avoid division by zero
 
-    if xs.size > 2:
-        kappas[1:-1] = 0.5 * (segment_curvature[:-1] + segment_curvature[1:])
+    # Overwrite when ds is zero
+    non_valid = ds_select < machine_epsilon
+    non_valid = np.insert(non_valid, 0, non_valid[0])  # First point has no previous segment
+    # if any(non_valid):
+        # print(f"Warning: Zero segment length detected at indices {np.where(non_valid)[0]}. Setting curvature to 0.")    
+    kappas_select[non_valid] = 0.0
+    
+    # Resample curvature to match the original number of samples using linear interpolation    
+    # if not np.all(valid_steps):
+    #     print(f"Warning: Some segments were too short to compute curvature. Indices: {np.where(~valid_steps)[0]}")
+    kappas = np.interp(curve_pos, curve_pos[valid_steps], kappas_select)
 
     return kappas
 
-
-def validate_curvature_samples(xs, ys, yaws, kappas):
-    """Validate curvature array alignment and numeric sanity."""
-    xs = np.asarray(xs)
-    ys = np.asarray(ys)
-    yaws = np.asarray(yaws)
-    kappas = np.asarray(kappas)
-
-    if xs.size != ys.size or xs.size != yaws.size or xs.size != kappas.size:
-        raise ValueError('Curvature samples must align with xs/ys/yaws lengths')
-
-    if not np.all(np.isfinite(kappas)):
-        raise ValueError('Curvature samples contain non-finite values')

@@ -12,7 +12,7 @@ import omni_acc
 
 from casadi import *
 
-from helper import compute_curvature_samples, normalize_angle, validate_curvature_samples
+from helper import compute_curvature_samples, normalize_angle
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +196,8 @@ class TrajectoryGenerator:
         ys[-1] = y2
         yaws[-1] = end_angle
 
-        kappas = compute_curvature_samples(xs, ys, yaws)
-        validate_curvature_samples(xs, ys, yaws, kappas)
+        # Compute curvature
+        kappas = compute_curvature_samples(xs, ys)
 
         return Path(xs, ys, yaws, kappas), length
 

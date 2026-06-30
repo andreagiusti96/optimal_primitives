@@ -26,7 +26,6 @@ class PrimitivesAnalyzer:
     print_metadata(): Print metadata and configuration parameters.
     print_statistics(): Print statistics about the primitive set.
     print_primitives_summary(limit=None): Print summary table of primitives.
-    compute_curvature(trajectory_id): Compute signed curvature for a trajectory.
     plot_primitive(trajectory_id, show_curvature=False): Plot a single primitive trajectory.
     plot_all_primitives_by_start_angle(start_angle_idx): Plot all primitives starting from a given angle.
 
@@ -154,40 +153,6 @@ class PrimitivesAnalyzer:
         if len(self.primitives) > limit:
             print(f"... and {len(self.primitives) - limit} more primitives")
     
-    def compute_curvature(self, trajectory_id):
-        """Compute signed curvature for a trajectory."""
-        if trajectory_id >= len(self.primitives):
-            print(f"Error: trajectory_id {trajectory_id} out of range")
-            return None
-        
-        prim = self.primitives[trajectory_id]
-        poses = prim.get('poses', np.array([]))
-        
-        if poses.shape[0] < 2:
-            return np.array([])
-        
-        curvatures = []
-        for i in range(poses.shape[0] - 1):
-            x1, y1 = poses[i, 0], poses[i, 1]
-            x2, y2 = poses[i + 1, 0], poses[i + 1, 1]
-            theta1 = poses[i, 2]
-            theta2 = poses[i + 1, 2]
-            
-            # Arc length
-            arc_len = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-            
-            if arc_len < 1e-6:
-                curvatures.append(0.0)
-                continue
-            
-            # Angle difference (wrapped to [-π, π])
-            dtheta = np.arctan2(np.sin(theta2 - theta1), np.cos(theta2 - theta1))
-            
-            # Signed curvature
-            curvature = dtheta / arc_len
-            curvatures.append(curvature)
-        
-        return np.array(curvatures)
     
     def plot_primitive(self, trajectory_ids=None, show_headings=False, show_curvature=False):
         """Plot one or more primitive trajectories.
@@ -259,10 +224,17 @@ class PrimitivesAnalyzer:
             
             # Plot curvature if requested
             if show_curvature:
-                curvatures = self.compute_curvature(trajectory_id)
-                if len(curvatures) > 0:
-                    ax2.plot(curvatures, '-', linewidth=2, color=color, label=label, alpha=0.8)
-        
+                curvatures = poses[:, 3]
+                segement_lengths = np.hypot(np.diff(xs, prepend=xs[0]), np.diff(ys, prepend=ys[0]))
+                curve_lenght = np.cumsum(segement_lengths)
+                ax2.plot(curve_lenght, curvatures, '-', linewidth=2, color=color, label=label, alpha=0.8)
+
+                tot_curvature = np.sum(curvatures * segement_lengths)
+                print(f"Trajectory ID {trajectory_id}: Total Curvature = {tot_curvature:.3f} rad")
+                delta_theta = poses[-1, 2] - poses[0, 2]
+                delta_theta = np.arctan2(np.sin(delta_theta), np.cos(delta_theta))
+                print(f"Trajectory ID {trajectory_id}: Change in Heading = {delta_theta:.3f} rad")
+                
         ax1.set_xlabel('X (m)')
         ax1.set_ylabel('Y (m)')
         ax1.set_title(f'Trajectories: {trajectory_ids}')
@@ -278,8 +250,8 @@ class PrimitivesAnalyzer:
         # Format curvature plot
         if show_curvature:
             ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
-            ax2.set_xlabel('Segment Index')
-            ax2.set_ylabel('Signed Curvature (1/m)')
+            ax2.set_xlabel('Arc Length (m)')
+            ax2.set_ylabel('Signed Curvature (rad/m)')
             ax2.set_title('Curvature Profile')
             ax2.grid(True, alpha=0.3)
             ax2.legend()
@@ -312,18 +284,16 @@ analyzer.print_primitives_summary(limit=20)
 
 # Plot a single trajectory
 # Single trajectory with headings
-analyzer.plot_primitive(0, show_headings=True, show_curvature=True)
+analyzer.plot_primitive(0, show_headings=True, show_curvature=False)
 
 # Multiple trajectories, no headings
-analyzer.plot_primitive([0, 5, 10])
+analyzer.plot_primitive([0, 5, 10],show_curvature=True)
 
 # Compare curvatures of 3 primitives
-analyzer.plot_primitive([0, 1, 2], show_curvature=True)
+analyzer.plot_primitive([0, 2], show_headings=True, show_curvature=True)
 
 analyzer.plot_primitive()
 
-# Compute curvature for a trajectory
-curvature = analyzer.compute_curvature(0)
-print(f"Curvature stats: min={curvature.min():.6f}, max={curvature.max():.6f}, mean={curvature.mean():.6f}")
+
 
 # %%
