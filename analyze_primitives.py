@@ -278,6 +278,7 @@ class PrimitivesAnalyzer:
 # primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv.json"
 # primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_resample.json"
 primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_downsamp4.json"
+primitives_path = r"outputs\diff_primitives_cc\diff_primitives_wcurv.json"
 # primitives_path = r"outputs\ackermann_primitives\ackermann_primitives_wcurv.json"
 
 analyzer = PrimitivesAnalyzer(primitives_path)

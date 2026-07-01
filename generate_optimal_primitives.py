@@ -59,12 +59,20 @@ def read_config(config_path) -> dict:
     with open(config_path) as config_file:
         config = json.load(config_file)
 
-    # Curvature defaults keep existing configs backward-compatible.
-    config.setdefault('curvature_enabled', True)
-    config.setdefault('curvature_mode', 'strict')
-    config.setdefault('curvature_fallback_policy', 'zero')
-    config.setdefault('curvature_min', None)
-    config.setdefault('curvature_max', None)
+    # # Curvature defaults keep existing configs backward-compatible.
+    # config.setdefault('curvature_enabled', True)
+    # config.setdefault('curvature_mode', 'strict')
+    # config.setdefault('curvature_fallback_policy', 'zero')
+    # config.setdefault('curvature_min', None)
+    # config.setdefault('curvature_max', None)
+
+    # Curvature-aware primitive generation (Phase 1). None -> curvature is
+    # free (current behavior). 1 -> catalog is just [0.0]. Odd N>=3 ->
+    # symmetric uniform catalog in +/- 1/turning_radius. Even N is promoted
+    # to N+1 inside OptimalGenerator with a warning.
+    config.setdefault('num_of_curvatures', None)
+    config.setdefault('curvature_weight', 100.0)
+    config.setdefault('curvature_tolerance', 0.1)
 
     return config
 
@@ -87,6 +95,24 @@ def create_heading_angle_list(minimal_set_trajectories: dict) -> list:
     return sorted(heading_angles, key=lambda x: (x < 0, x))
 
 
+def _primitive_boundary_kappas(trajectory) -> tuple:
+    """Return (start_kappa, end_kappa) for a trajectory.
+
+    Uses the target curvature stored on the parameters when available,
+    otherwise falls back to the actual sampled curvature at the boundary.
+    """
+    params = trajectory.parameters
+    if params.target_start_kappa is not None:
+        start_k = float(params.target_start_kappa)
+    else:
+        start_k = float(trajectory.path.kappas[0])
+    if params.target_end_kappa is not None:
+        end_k = float(params.target_end_kappa)
+    else:
+        end_k = float(trajectory.path.kappas[-1])
+    return round(start_k, 12), round(end_k, 12)
+
+
 def create_curvature_catalog(minimal_set_trajectories: dict) -> list:
     """Create a sorted list of unique start/end curvature values."""
     curvatures = set()
@@ -94,8 +120,9 @@ def create_curvature_catalog(minimal_set_trajectories: dict) -> list:
         for trajectory in trajectories:
             if trajectory.path.kappas is None or len(trajectory.path.kappas) == 0:
                 continue
-            curvatures.add(round(float(trajectory.path.kappas[0]), 12))
-            curvatures.add(round(float(trajectory.path.kappas[-1]), 12))
+            start_k, end_k = _primitive_boundary_kappas(trajectory)
+            curvatures.add(start_k)
+            curvatures.add(end_k)
     return sorted(curvatures)
 
 def create_header(config: dict, minimal_set_trajectories: dict) -> dict:
@@ -172,10 +199,8 @@ def write_to_json(output_path: Path, minimal_set_trajectories: dict, config: dic
                 trajectory.parameters.straight_length,
                 5,
             )
-            traj_info['poses'] = trajectory.path.to_output_format(include_curvature=True)
 
-            start_curvature = round(float(trajectory.path.kappas[0]), 12)
-            end_curvature = round(float(trajectory.path.kappas[-1]), 12)
+            start_curvature, end_curvature = _primitive_boundary_kappas(trajectory)
 
             if start_curvature not in curvature_lookup or end_curvature not in curvature_lookup:
                 if not strict_mode:
@@ -188,6 +213,8 @@ def write_to_json(output_path: Path, minimal_set_trajectories: dict, config: dic
             traj_info['end_curvature'] = end_curvature
             traj_info['start_curvature_index'] = curvature_lookup[start_curvature]
             traj_info['end_curvature_index'] = curvature_lookup[end_curvature]
+
+            traj_info['poses'] = trajectory.path.to_output_format(include_curvature=True)
 
             output_dict['primitives'].append(traj_info)
             idx += 1
@@ -267,7 +294,7 @@ if __name__ == '__main__':
     # Create output directories and save results
     base_outputs_dir = args.output
     base_outputs_dir.mkdir(exist_ok=True)
-    output_dir = base_outputs_dir / f'{config["motion_model"]}_primitives'
+    output_dir = base_outputs_dir / f'{config["motion_model"]}_primitives_cc'
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f'{config["motion_model"]}_primitives_wcurv.json'
     figures_dir = output_dir / 'figures'

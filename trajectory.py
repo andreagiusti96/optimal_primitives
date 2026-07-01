@@ -28,6 +28,8 @@ class TrajectoryParameters:
     left_turn: bool
     total_length: float
     straight_length: float
+    target_start_kappa: float = None
+    target_end_kappa: float = None
 
     @property
     def arc_length(self):

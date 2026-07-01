@@ -34,6 +34,8 @@ class TrajectoryGenerator:
         self.max_ang_vel = config['max_ang_vel']
         self.max_lin_acc = config['max_lin_acc']
         self.max_ang_acc = config['max_ang_acc']
+        self.curvature_weight = config.get('curvature_weight', 100.0)
+        self.curvature_tolerance = config.get('curvature_tolerance', 0.1)
         self.motion_model = self.MotionModel[config['motion_model'].upper()]
         if self.motion_model == self.MotionModel.ACKERMANN:
             self.wheelbase = config['wheelbase']
@@ -142,7 +144,8 @@ class TrajectoryGenerator:
         return start_point + t * (end_point - start_point)
 
     def _create_path(
-        self, x2: float, y2: float, end_angle: float, start_angle: float
+        self, x2: float, y2: float, end_angle: float, start_angle: float,
+        start_kappa: float = None, end_kappa: float = None,
     ) -> Path:
         """
         Create the full trajectory path from the given trajectory parameters.
@@ -175,17 +178,28 @@ class TrajectoryGenerator:
 
         if self.motion_model == self.MotionModel.ACKERMANN:
             xs, ys, yaws, length = bicycle_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc, self.wheelbase, self.max_steer_ang)
-            
+            kappas = compute_curvature_samples(np.array(xs), np.array(ys))
+
         elif self.motion_model == self.MotionModel.DIFF:
-            xs, ys, yaws, length = unicycle_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc)
+            xs, ys, yaws, kappas, length = unicycle_acc.return_poses(
+                x2, y2, end_angle, current_X,
+                self.max_vel, self.min_vel, self.max_ang_vel,
+                self.max_lin_acc, self.max_ang_acc,
+                start_kappa, end_kappa, self.curvature_weight,
+            )
+            # Kept for debugging / regression tests: the same value can also be
+            # computed geometrically from the (x, y) samples.
+            # kappas = compute_curvature_samples(np.array(xs), np.array(ys))
 
         elif self.motion_model == self.MotionModel.OMNI:
             current_X = vertcat(0.0,0.0,start_angle,0.0,0.0,0.0)
-            xs, ys, yaws, length = omni_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc)        
+            xs, ys, yaws, length = omni_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc)
+            kappas = compute_curvature_samples(np.array(xs), np.array(ys))
 
         xs = np.array(xs)
         ys = np.array(ys)
         yaws = np.array(yaws)
+        kappas = np.array(kappas)
 
         # The last point may be slightly off due to rounding issues
         # so we correct the last point to be exactly the end point
@@ -195,9 +209,6 @@ class TrajectoryGenerator:
         xs[-1] = x2
         ys[-1] = y2
         yaws[-1] = end_angle
-
-        # Compute curvature
-        kappas = compute_curvature_samples(xs, ys)
 
         return Path(xs, ys, yaws, kappas), length
 
@@ -310,7 +321,8 @@ class TrajectoryGenerator:
             return False
         
     def _calculate_trajectory(
-        self, end_point: np.array, start_angle: float, end_angle: float
+        self, end_point: np.array, start_angle: float, end_angle: float,
+        start_kappa: float = None, end_kappa: float = None,
     ) -> Union[Trajectory, None]:
         """
         Calculate the parameters for a trajectory with the desired constraints.
@@ -367,11 +379,16 @@ class TrajectoryGenerator:
             # return a circle with infinite radius
             if round(-m2 * x2 + y2, 5) == 0:
                 try:
-                    trajectory_path, trajectory_length = self._create_path(x2, y2, end_angle, start_angle)
+                    trajectory_path, trajectory_length = self._create_path(
+                        x2, y2, end_angle, start_angle, start_kappa, end_kappa,
+                    )
+                    if not self._boundary_curvature_ok(trajectory_path, start_kappa, end_kappa):
+                        return None
                     trajectory_parameters = TrajectoryParameters(
-                        turning_radius=0.0, end_point=end_point, 
+                        turning_radius=0.0, end_point=end_point,
                         start_angle=start_angle, end_angle=end_angle, left_turn=True,
-                        total_length=trajectory_length, straight_length=trajectory_length
+                        total_length=trajectory_length, straight_length=trajectory_length,
+                        target_start_kappa=start_kappa, target_end_kappa=end_kappa,
                     )
                     return Trajectory(trajectory_path, trajectory_parameters)
                 except:
@@ -382,11 +399,16 @@ class TrajectoryGenerator:
                 abs(start_angle) == np.pi / 2 and arc_end_point[0] == arc_start_point[0]
             ):
                 try:
-                    trajectory_path, trajectory_length = self._create_path(x2, y2, end_angle, start_angle)
+                    trajectory_path, trajectory_length = self._create_path(
+                        x2, y2, end_angle, start_angle, start_kappa, end_kappa,
+                    )
+                    if not self._boundary_curvature_ok(trajectory_path, start_kappa, end_kappa):
+                        return None
                     trajectory_parameters = TrajectoryParameters(
-                        turning_radius=0.0, end_point=end_point, 
+                        turning_radius=0.0, end_point=end_point,
                         start_angle=start_angle, end_angle=end_angle, left_turn=True,
-                        total_length=trajectory_length, straight_length=trajectory_length
+                        total_length=trajectory_length, straight_length=trajectory_length,
+                        target_start_kappa=start_kappa, target_end_kappa=end_kappa,
                     )
                     return Trajectory(trajectory_path, trajectory_parameters)
                 except:
@@ -508,60 +530,83 @@ class TrajectoryGenerator:
         left_turn = self._is_left_turn(intersection_point, end_point)
 
         try:
-            trajectory_path, trajectory_length = self._create_path(x2, y2, end_angle, start_angle)
+            trajectory_path, trajectory_length = self._create_path(
+                x2, y2, end_angle, start_angle, start_kappa, end_kappa,
+            )
+            if not self._boundary_curvature_ok(trajectory_path, start_kappa, end_kappa):
+                return None
             trajectory_parameters = TrajectoryParameters(
-            turning_radius=self.turning_radius, end_point=end_point, 
-            start_angle=start_angle, end_angle=end_angle, left_turn=left_turn,
-            total_length=trajectory_length, straight_length=trajectory_length
+                turning_radius=self.turning_radius, end_point=end_point,
+                start_angle=start_angle, end_angle=end_angle, left_turn=left_turn,
+                total_length=trajectory_length, straight_length=trajectory_length,
+                target_start_kappa=start_kappa, target_end_kappa=end_kappa,
             )
             return Trajectory(trajectory_path, trajectory_parameters)
         except:
             return None
 
 
-    def generate_trajectory(
-        self,
-        end_point: np.array,
-        start_angle: float,
-        end_angle: float,
-        primitive_resolution: float,
-    ) -> Union[Trajectory, None]:
+    def _boundary_curvature_ok(
+        self, path: Path, start_kappa: float, end_kappa: float,
+    ) -> bool:
+        """Return True unless a curvature target was specified and the actual
+        boundary curvature deviates from it by more than ``curvature_tolerance``.
         """
-        Create a trajectory from (0,0, start_angle) to (end_point, end_angle).
+        if path is None or path.kappas is None:
+            return True
+        if start_kappa is not None:
+            if abs(float(path.kappas[0]) - start_kappa) > self.curvature_tolerance:
+                return False
+        if end_kappa is not None:
+            if abs(float(path.kappas[-1]) - end_kappa) > self.curvature_tolerance:
+                return False
+        return True
 
-        The trajectory will consist of a path that contains discrete points
-        that are spaced primitive_resolution apart.
+    # def generate_trajectory(
+    #     self,
+    #     end_point: np.array,
+    #     start_angle: float,
+    #     end_angle: float,
+    #     primitive_resolution: float,
+    #     start_kappa: float = None,
+    #     end_kappa: float = None,
+    # ) -> Union[Trajectory, None]:
+    #     """
+    #     Create a trajectory from (0,0, start_angle) to (end_point, end_angle).
 
-        Args
-        ----
-        end_point: np.array(2,)
-            The desired end point of the trajectory
-        start_angle: float
-            The start angle of the trajectory in radians
-        end_angle: float
-            The end angle of the trajectory in radians
-        primitive_resolution: float
-            The spacing between points along the trajectory
+    #     The trajectory will consist of a path that contains discrete points
+    #     that are spaced primitive_resolution apart.
 
-        Returns
-        -------
-        Trajectory or None
-            If a valid trajectory exists then the Trajectory is returned,
-            otherwise None
+    #     Args
+    #     ----
+    #     end_point: np.array(2,)
+    #         The desired end point of the trajectory
+    #     start_angle: float
+    #         The start angle of the trajectory in radians
+    #     end_angle: float
+    #         The end angle of the trajectory in radians
+    #     primitive_resolution: float
+    #         The spacing between points along the trajectory
 
-        """
+    #     Returns
+    #     -------
+    #     Trajectory or None
+    #         If a valid trajectory exists then the Trajectory is returned,
+    #         otherwise None
 
-        #if (abs(start_angle - end_angle) >= np.pi):
-        #    if (end_angle < 0):
-        #        end_angle += np.pi
-        #    if (start_angle < 0):
-        #        start_angle += np.pi
+    #     """
 
-        trajectory = self._calculate_trajectory(
-            end_point, start_angle, end_angle
-        )
+    #     #if (abs(start_angle - end_angle) >= np.pi):
+    #     #    if (end_angle < 0):
+    #     #        end_angle += np.pi
+    #     #    if (start_angle < 0):
+    #     #        start_angle += np.pi
 
-        if trajectory is None:
-            return None
+    #     trajectory = self._calculate_trajectory(
+    #         end_point, start_angle, end_angle, start_kappa, end_kappa,
+    #     )
 
-        return trajectory
+    #     if trajectory is None:
+    #         return None
+
+    #     return trajectory
