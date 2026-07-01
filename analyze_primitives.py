@@ -203,8 +203,8 @@ class PrimitivesAnalyzer:
             
             # Plot trajectory path
             ax1.plot(xs, ys, '-', linewidth=2, color=color, label=label, alpha=0.8)
-            ax1.plot(xs[0], ys[0], 'o', markerfacecolor='none', markeredgecolor=color,markersize=10)
-            ax1.plot(xs[-1], ys[-1], 'o', color=color, markersize=10)
+            ax1.plot(xs[0], ys[0], 'o', markerfacecolor='none', markeredgecolor=color,markersize=5)
+            ax1.plot(xs[-1], ys[-1], 'o', color=color, markersize=5)
             
             # Add heading arrows if requested
             if show_headings:
@@ -229,18 +229,23 @@ class PrimitivesAnalyzer:
                 curve_lenght = np.cumsum(segement_lengths)
                 ax2.plot(curve_lenght, curvatures, '-', linewidth=2, color=color, label=label, alpha=0.8)
 
-                tot_curvature = np.sum(curvatures * segement_lengths)
-                print(f"Trajectory ID {trajectory_id}: Total Curvature = {tot_curvature:.3f} rad")
-                delta_theta = poses[-1, 2] - poses[0, 2]
-                delta_theta = np.arctan2(np.sin(delta_theta), np.cos(delta_theta))
-                print(f"Trajectory ID {trajectory_id}: Change in Heading = {delta_theta:.3f} rad")
+                # tot_curvature = np.sum(curvatures * segement_lengths)
+                # print(f"Trajectory ID {trajectory_id}: Total Curvature = {tot_curvature:.3f} rad")
+                # delta_theta = poses[-1, 2] - poses[0, 2]
+                # delta_theta = np.arctan2(np.sin(delta_theta), np.cos(delta_theta))
+                # print(f"Trajectory ID {trajectory_id}: Change in Heading = {delta_theta:.3f} rad")
                 
         ax1.set_xlabel('X (m)')
         ax1.set_ylabel('Y (m)')
         ax1.set_title(f'Trajectories: {trajectory_ids}')
         
         # Align grid to grid resolution
+        xlim = ax1.get_xlim()
+        xrange = xlim[1] - xlim[0]
         grid_resolution = self.metadata.get('grid_resolution', 0.05)
+        divisor = grid_resolution*10
+        grid_adjusted = np.round((xrange/10)/divisor) * divisor
+        grid_resolution = max(grid_adjusted, grid_resolution)  # Ensure a minimum grid resolution
         ax1.xaxis.set_major_locator(MultipleLocator(grid_resolution))
         ax1.yaxis.set_major_locator(MultipleLocator(grid_resolution))
         ax1.grid(True, alpha=0.3, which='major')
@@ -269,8 +274,11 @@ class PrimitivesAnalyzer:
 
 # Load primitives
 # primitives_path = r"outputs\omni_primitives\primitives.json"
-primitives_path = r"outputs\diff_primitives\primitives.json"
-# primitives_path = r"outputs\ackermann_primitives\primitives.json"
+# primitives_path = r"outputs\diff_primitives\primitives.json"
+# primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv.json"
+# primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_resample.json"
+primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_downsamp4.json"
+# primitives_path = r"outputs\ackermann_primitives\ackermann_primitives_wcurv.json"
 
 analyzer = PrimitivesAnalyzer(primitives_path)
 
@@ -282,16 +290,15 @@ analyzer.print_primitives_summary(limit=20)
 # %% -----------------------------------------------
 # 2) Analyze selected trajetory
 
-# Plot a single trajectory
-# Single trajectory with headings
-analyzer.plot_primitive(0, show_headings=True, show_curvature=False)
-
-# Multiple trajectories, no headings
-analyzer.plot_primitive([0, 5, 10],show_curvature=True)
-
-# Compare curvatures of 3 primitives
+# Few trajectories witrh heading and curvature
 analyzer.plot_primitive([0, 2], show_headings=True, show_curvature=True)
 
+# Multiple trajectories, no headings
+analyzer.plot_primitive(range(0, 5),show_curvature=True)
+analyzer.plot_primitive([11, 22, 225],show_curvature=True)
+analyzer.plot_primitive(range(0, 100),show_curvature=True)
+
+# Plot all trajectories
 analyzer.plot_primitive()
 
 

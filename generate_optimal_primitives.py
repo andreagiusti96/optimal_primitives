@@ -269,7 +269,7 @@ if __name__ == '__main__':
     base_outputs_dir.mkdir(exist_ok=True)
     output_dir = base_outputs_dir / f'{config["motion_model"]}_primitives'
     output_dir.mkdir(exist_ok=True)
-    output_file = output_dir / 'primitives.json'
+    output_file = output_dir / f'{config["motion_model"]}_primitives_wcurv.json'
     figures_dir = output_dir / 'figures'
     figures_dir.mkdir(exist_ok=True)
     write_to_json(output_file, minimal_set_trajectories, config)

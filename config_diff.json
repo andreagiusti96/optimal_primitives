@@ -14,6 +14,6 @@
     "curvature_fallback_policy": "zero",
     "curvature_min": null,
     "curvature_max": null,
-    "max_wavefront_expansion": 1,
+    "max_wavefront_expansion": 3,
     "verbosity": 1
 }

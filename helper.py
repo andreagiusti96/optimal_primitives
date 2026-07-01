@@ -164,10 +164,17 @@ def compute_curvature_samples(xs, ys):
     # deltas = np.vstack((dx, dy)).T
 
     # Filter out segments that are too short to compute curvature
-    valid_steps = ds > ds.mean()/2
-    valid_steps = np.insert(valid_steps, 0, True)  
-    xs_select = xs[valid_steps]
-    ys_select = ys[valid_steps]
+    # select_steps = ds > ds.mean()/2
+    select_steps = ds > ds.mean()/4
+    select_steps = np.insert(select_steps, 0, True)  
+    select_positions = curve_pos[select_steps]
+    xs_select = xs[select_steps]
+    ys_select = ys[select_steps]
+    
+    # # interpolate trajectory to get equally scaped samples along the curve
+    # select_positions = np.linspace(0, curve_pos[-1], xs.size)
+    # xs_select = np.interp(select_positions, curve_pos, xs)
+    # ys_select = np.interp(select_positions, curve_pos, ys)
     
     dx_select = np.diff(xs_select)
     dy_select = np.diff(ys_select)
@@ -197,9 +204,11 @@ def compute_curvature_samples(xs, ys):
     kappas_select[non_valid] = 0.0
     
     # Resample curvature to match the original number of samples using linear interpolation    
-    # if not np.all(valid_steps):
-    #     print(f"Warning: Some segments were too short to compute curvature. Indices: {np.where(~valid_steps)[0]}")
-    kappas = np.interp(curve_pos, curve_pos[valid_steps], kappas_select)
+    # if not np.all(select_steps):
+    #     print(f"Warning: Some segments were too short to compute curvature. Indices: {np.where(~select_steps)[0]}")
+    # kappas = np.interp(curve_pos, curve_pos[select_steps], kappas_select)
+    
+    kappas = np.interp(curve_pos, select_positions, kappas_select)
 
     return kappas
 
