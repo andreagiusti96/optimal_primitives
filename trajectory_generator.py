@@ -174,7 +174,10 @@ class TrajectoryGenerator:
             start_angle = start_angle_normalized
             end_angle = end_angle_normalized
 
-        current_X = vertcat(0.0,0.0,start_angle,0.0,0.0)
+        # set the initial state for the OCP
+        # X = [x, y, theta, v, w]
+        ref_vel = (self.max_vel + self.min_vel) * 0.0
+        current_X = vertcat(0.0,0.0,start_angle,ref_vel,0.0)
 
         if self.motion_model == self.MotionModel.ACKERMANN:
             xs, ys, yaws, length = bicycle_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc, self.wheelbase, self.max_steer_ang)
@@ -192,7 +195,7 @@ class TrajectoryGenerator:
             # kappas = compute_curvature_samples(np.array(xs), np.array(ys))
 
         elif self.motion_model == self.MotionModel.OMNI:
-            current_X = vertcat(0.0,0.0,start_angle,0.0,0.0,0.0)
+            current_X = vertcat(current_X,0.0)
             xs, ys, yaws, length = omni_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc)
             kappas = compute_curvature_samples(np.array(xs), np.array(ys))
 

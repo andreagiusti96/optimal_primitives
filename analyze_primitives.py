@@ -154,6 +154,31 @@ class PrimitivesAnalyzer:
             print(f"... and {len(self.primitives) - limit} more primitives")
     
     
+    def get_primitives_with(self, final_x=None, final_y=None, final_angle=None, start_angle=None):
+        """Return indices of primitives matching specified criteria."""
+        indices = []
+        for i, prim in enumerate(self.primitives):
+            match = True
+            poses = prim.get('poses', np.array([]))
+            if start_angle is not None and not np.isclose(poses[0, 2], start_angle, atol=1e-2).any():
+                match = False
+            if final_x is not None and not np.isclose(poses[-1, 0], final_x, atol=1e-2).any():
+                match = False
+            if final_y is not None and not np.isclose(poses[-1, 1], final_y, atol=1e-2).any():
+                match = False
+            if final_angle is not None and not np.isclose(poses[-1, 2], final_angle, atol=1e-2).any():
+                match = False
+            
+            if match:
+                indices.append(i)
+        
+        return indices
+    
+    def plot_primitives_with(self, final_x=None, final_y=None, final_angle=None, start_angle=None, show_headings=False, show_curvature=False):
+        """Plot primitives matching specified criteria."""
+        trajectory_ids = self.get_primitives_with(final_x, final_y, final_angle, start_angle)
+        self.plot_primitive(trajectory_ids, show_headings=show_headings, show_curvature=show_curvature)
+    
     def plot_primitive(self, trajectory_ids=None, show_headings=False, show_curvature=False):
         """Plot one or more primitive trajectories.
         
@@ -196,7 +221,7 @@ class PrimitivesAnalyzer:
             
             xs = poses[:, 0]
             ys = poses[:, 1]
-            color = colors[idx % 10]
+            color = colors[trajectory_id % 10]
             
             # Only add label to legend for first 15 entries
             label = f'ID {trajectory_id}' if idx < 15 else ''
@@ -237,7 +262,11 @@ class PrimitivesAnalyzer:
                 
         ax1.set_xlabel('X (m)')
         ax1.set_ylabel('Y (m)')
-        ax1.set_title(f'Trajectories: {trajectory_ids}')
+        
+        if len(trajectory_ids) < 5:
+            ax1.set_title(f'Trajectories: {trajectory_ids}')
+        else:
+            ax1.set_title(f'Trajectories: [{trajectory_ids[0]}, {trajectory_ids[1]}, ..., {trajectory_ids[-1]}] (total {len(trajectory_ids)})')
         
         # Align grid to grid resolution
         xlim = ax1.get_xlim()
@@ -277,7 +306,8 @@ class PrimitivesAnalyzer:
 # primitives_path = r"outputs\diff_primitives\primitives.json"
 # primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv.json"
 # primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_resample.json"
-primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_downsamp4.json"
+# primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_downsamp4.json"
+primitives_path = r"outputs\diff_primitives_cc\diff_primitives_wcurv_sym.json"
 primitives_path = r"outputs\diff_primitives_cc\diff_primitives_wcurv.json"
 # primitives_path = r"outputs\ackermann_primitives\ackermann_primitives_wcurv.json"
 
@@ -301,6 +331,14 @@ analyzer.plot_primitive(range(0, 100),show_curvature=True)
 
 # Plot all trajectories
 analyzer.plot_primitive()
+
+analyzer.plot_primitives_with(start_angle=0.0, final_x=0.15, final_y=[0.0,0.05,0.1], show_curvature=True)
+
+
+# analyzer.plot_primitives_with(final_x=0.15, final_y=0.0, final_angle=0.0, start_angle=0.0)
+# analyzer.plot_primitives_with(final_x=0.15)
+# analyzer.plot_primitives_with(final_x=0.15, final_y=[0.0], show_curvature=True)
+analyzer.plot_primitives_with(final_x=0.15, final_y=[0.0], start_angle=[0.46, 0.78, 1.1], show_curvature=True)
 
 
 

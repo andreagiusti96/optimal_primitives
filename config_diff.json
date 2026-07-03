@@ -9,9 +9,9 @@
     "max_ang_vel": 1.0,
     "max_lin_acc": 0.1,
     "max_ang_acc": 0.1,
-    "num_of_curvatures": 3,
-    "curvature_weight": 100.0,
-    "curvature_tolerance": 0.1,
+    "num_of_curvatures": null,
+    "curvature_weight": 0.01,
+    "curvature_tolerance": 1e3,
     "max_wavefront_expansion": 1,
     "verbosity": 1
 }
