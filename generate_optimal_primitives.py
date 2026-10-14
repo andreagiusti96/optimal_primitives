@@ -31,7 +31,7 @@ def handle_arg_parsing():
                                                  'Lattice Planner')
     parser.add_argument('--config',
                         type=Path,
-                        default='./config_diff.json',
+                        default='./config_ackermann.json',
                         help='The config file containing the '
                         'parameters to be used')
     parser.add_argument('--output',
@@ -294,7 +294,7 @@ if __name__ == '__main__':
     # Create output directories and save results
     base_outputs_dir = args.output
     base_outputs_dir.mkdir(exist_ok=True)
-    output_dir = base_outputs_dir / f'{config["motion_model"]}_primitives_cc'
+    output_dir = base_outputs_dir / f'{config["motion_model"]}_primitives_opt'
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f'{config["motion_model"]}_primitives_wcurv.json'
     figures_dir = output_dir / 'figures'
