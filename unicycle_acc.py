@@ -28,11 +28,11 @@ CURVATURE_EPS = 1e-3
 T0 = 0.0
 ocp = Ocp(T=FreeTime(T0))
 
-x = ocp.state()
-y = ocp.state()
-theta = ocp.state()
-v = ocp.state()
-w = ocp.state()
+x = ocp.state()     # x position of the unicycle
+y = ocp.state()     # y position of the unicycle
+theta = ocp.state() # heading angle of the unicycle
+v = ocp.state()     # linear velocity of the unicycle
+w = ocp.state()     # angular velocity of the unicycle
 
 v_dot = ocp.control()
 w_dot = ocp.control()
@@ -184,6 +184,7 @@ def return_poses(_xf, _yf, _thetaf, _x0, _max_vel, _min_vel, _max_ang_vel, _max_
     ds = np.hypot(np.diff(xsol), np.diff(ysol))
     curve_pos = np.cumsum(ds)   # Cumulative distance along the curve
     curve_pos = np.insert(curve_pos, 0, 0.0)  # Add starting position
+    total_d = curve_pos[-1]
     
     # if np.isclose(_xf, 0.15) and np.isclose(_yf, 0.15):
     #     print("Unicycle OCP solution:")
@@ -191,4 +192,4 @@ def return_poses(_xf, _yf, _thetaf, _x0, _max_vel, _min_vel, _max_ang_vel, _max_
     # if np.any(abs(ksol) > 100):
     #     print("Warning: curvature exceeds max curvature limit")
         
-    return xsol, ysol, thetasol, ksol, curve_pos[-1]
+    return xsol, ysol, thetasol, ksol, total_d
