@@ -69,7 +69,7 @@ ocp.add_objective(ocp.T)
 
 # Box constraints on the states and controls
 ocp.subject_to( (-max_linear_acc <= v_dot) <= max_linear_acc )
-# ocp.subject_to( (-1e-8 <= v_dot) <= 1e-8 )
+ocp.subject_to( (-1e-9 <= v_dot) <= 1e-9 )  # const velocity
 ocp.subject_to( (-max_rot_acc <= w_dot) <= max_rot_acc )
 ocp.subject_to( (lower_speed <= v) <= upper_speed )
 ocp.subject_to( (-max_rot_speed <= w) <= max_rot_speed )
@@ -94,24 +94,28 @@ ocp.subject_to(ocp.at_t0(theta)==X_0[2])
 ocp.add_objective(
     initial_state_slack_weight * ((ocp.at_t0(w)-X_0[4])**2)    
 )
-# Soft boundary-curvature penalty. When curvature_weight = 0 this term
-# disappears from the cost (used by non-curvature-aware call sites).
-ocp.add_objective(
-    curvature_weight * ((ocp.at_t0(k) - kappa_start)**2)
-)
+# # Soft boundary-curvature penalty. When curvature_weight = 0 this term
+# # disappears from the cost (used by non-curvature-aware call sites).
+# ocp.add_objective(
+#     curvature_weight * ((ocp.at_t0(k) - kappa_start)**2)
+# )
 
 # Terminal condition
 ocp.subject_to(ocp.at_tf(x)==final_x)
 ocp.subject_to(ocp.at_tf(y)==final_y)
 ocp.subject_to(ocp.at_tf(theta)==final_angle)
-# Soft boundary-curvature penalty. When curvature_weight = 0 this term
-# disappears from the cost (used by non-curvature-aware call sites).
-ocp.add_objective(
-    curvature_weight * ((ocp.at_tf(k) - kappa_end)**2)
-)
-# Symmetric start/end state
+# # Soft boundary-curvature penalty. When curvature_weight = 0 this term
+# # disappears from the cost (used by non-curvature-aware call sites).
+# ocp.add_objective(
+#     curvature_weight * ((ocp.at_tf(k) - kappa_end)**2)
+# )
+# Constrained end speed
 # ocp.add_objective(
 #     initial_state_slack_weight * ((ocp.at_tf(v)-X_0[3])**2)    
+# )
+# Symmetric start/end state
+# ocp.add_objective(
+#     initial_state_slack_weight * ((ocp.at_t0(v)-ocp.at_tf(v))**2)    
 # )
 ocp.add_objective(
     initial_state_slack_weight * ((ocp.at_tf(w)-X_0[4])**2)    
