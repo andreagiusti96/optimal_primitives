@@ -311,7 +311,7 @@ class PrimitivesAnalyzer:
 # primitives_path = r"outputs\diff_primitives_constvel\diff_primitives_wcurv_constvel.json"
 # primitives_path = r"outputs\diff_primitives_opt\diff_primitives_wcurv.json"
 primitives_path = r"outputs\ackermann_primitives_opt\ackermann_primitives_wcurv.json"
-# primitives_path = r"sample_primitives\diff\diff_primitives.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_freekf_constvel\ackermann_primitives_wcurv.json"
 
 
 analyzer = PrimitivesAnalyzer(primitives_path)
@@ -337,13 +337,16 @@ analyzer.plot_primitive(range(0, 100), show_curvature=has_curvature)
 # Plot all trajectories
 analyzer.plot_primitive(show_curvature=has_curvature)
 
-analyzer.plot_primitives_with(start_angle=0.0, final_x=0.15, final_y=[0.0,0.05,0.1], show_curvature=has_curvature)
+# analyzer.plot_primitives_with(start_angle=0.0, final_x=0.15, final_y=[0.0,0.05,0.1], show_curvature=has_curvature)
+analyzer.plot_primitives_with(final_x=3.5, final_y=[1.5], start_angle=0.0, show_curvature=has_curvature)
 
 
 # analyzer.plot_primitives_with(final_x=0.15, final_y=0.0, final_angle=0.0, start_angle=0.0)
 # analyzer.plot_primitives_with(final_x=0.15)
 # analyzer.plot_primitives_with(final_x=0.15, final_y=[0.0], show_curvature=True)
-analyzer.plot_primitives_with(final_x=0.15, final_y=[0.0], start_angle=[0.46, 0.78, 1.1], show_curvature=has_curvature)
+# analyzer.plot_primitives_with(final_x=0.15, final_y=[0.0], start_angle=[0.46, 0.78, 1.1], show_curvature=has_curvature)
+# analyzer.plot_primitives_with(final_x=3.5, final_y=[0.0, 1.5, 3.5], show_curvature=has_curvature)
+analyzer.plot_primitives_with(final_x=3.5, final_y=[0.0, 1.5], start_angle=0.0, show_curvature=has_curvature)
 
 
 

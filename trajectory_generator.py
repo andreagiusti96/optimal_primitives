@@ -40,7 +40,8 @@ class TrajectoryGenerator:
         if self.motion_model == self.MotionModel.ACKERMANN:
             self.wheelbase = config['wheelbase']
             self.max_steer_ang = config['max_steer_ang']
-
+            self.max_steer_speed = config['max_steer_speed']
+    
     def _get_arc_point(
         self, trajectory_params: TrajectoryParameters, t: float
     ) -> Tuple[float, float, float]:
@@ -180,9 +181,16 @@ class TrajectoryGenerator:
         current_X = vertcat(0.0,0.0,start_angle,ref_vel,0.0)
 
         if self.motion_model == self.MotionModel.ACKERMANN:
-            xs, ys, yaws, length = bicycle_acc.return_poses(x2, y2, end_angle, current_X, self.max_vel, self.min_vel, self.max_ang_vel, self.max_lin_acc, self.max_ang_acc, self.wheelbase, self.max_steer_ang)
-            kappas = compute_curvature_samples(np.array(xs), np.array(ys))
-
+            xs, ys, yaws, kappas, length = bicycle_acc.return_poses(
+                x2, y2, end_angle, current_X, 
+                self.max_vel, self.min_vel, self.max_ang_vel, 
+                self.max_lin_acc, self.max_ang_acc, self.wheelbase, self.max_steer_ang, self.max_steer_speed,
+                start_kappa, end_kappa, self.curvature_weight)
+            
+            # Kept for debugging / regression tests: the same value can also be
+            # computed geometrically from the (x, y) samples.
+            # kappas = compute_curvature_samples(np.array(xs), np.array(ys))
+            
         elif self.motion_model == self.MotionModel.DIFF:
             xs, ys, yaws, kappas, length = unicycle_acc.return_poses(
                 x2, y2, end_angle, current_X,
@@ -190,6 +198,7 @@ class TrajectoryGenerator:
                 self.max_lin_acc, self.max_ang_acc,
                 start_kappa, end_kappa, self.curvature_weight,
             )
+            
             # Kept for debugging / regression tests: the same value can also be
             # computed geometrically from the (x, y) samples.
             # kappas = compute_curvature_samples(np.array(xs), np.array(ys))
