@@ -12,18 +12,6 @@ Nhor = 20
 # to keep it finite (and differentiable) when v ~ 0.
 CURVATURE_EPS = 1e-3
 
-# starting_angle = 0.0
-# start_x = 0.0
-# start_y = 0.0
-# start_v = 0.0
-# start_w = 0.0
-
-# end_angle = 0.0
-# end_x = 1.0
-# end_y = 0.0
-
-# current_X = vertcat(start_x,start_y,starting_angle,start_v,start_w)
-
 # init free time OCP
 T0 = 0.0
 ocp = Ocp(T=FreeTime(T0))
@@ -130,18 +118,7 @@ ocp.solver('ipopt',options)
 # Make it concrete for this ocp
 ocp.method(MultipleShooting(N=Nhor,M=1,intg='rk'))
 
-# ocp.set_value(X_0, current_X)
-# ocp.set_value(final_x, end_x)
-# ocp.set_value(final_y, end_y)
-# ocp.set_value(final_angle, end_angle)
-# ocp.set_value(kappa_start, 0.0)
-# ocp.set_value(kappa_end, 0.0)
-# ocp.set_value(curvature_weight, 0.0)
-# ocp.set_value(initial_state_slack_weight, 1.0e6)
-# # Solve
-# #sol = ocp.solve()
 
-#tsa, xsol = sol.sample(x, grid='control')
 
 def return_poses(_xf, _yf, _thetaf, _x0, _max_vel, _min_vel, _max_ang_vel, _max_lin_acc, _max_ang_acc,
                  _kappa_start=None, _kappa_end=None, _curvature_weight=0.0):
