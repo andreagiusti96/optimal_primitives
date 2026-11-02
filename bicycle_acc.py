@@ -17,14 +17,14 @@ CURVATURE_EPS = 1e-3
 T0 = 0.0
 ocp = Ocp(T=FreeTime(T0))
 
-x = ocp.state()     # x position rear axle
-y = ocp.state()     # y position rear axle
-theta = ocp.state() # heading angle
-v = ocp.state()     # linear velocity
-delta = ocp.state() # steering angle
+x = ocp.state()     # x position rear axle [m]
+y = ocp.state()     # y position rear axle [m]
+theta = ocp.state() # heading angle [rad]
+v = ocp.state()     # linear velocity [m/s]
+delta = ocp.state() # steering angle [rad]
 
-v_dot = ocp.control()
-delta_dot = ocp.control()
+v_dot = ocp.control()     # linear acceleration [m/s^2]
+delta_dot = ocp.control() # steering rate [rad/s]
 
 X_0 = ocp.parameter(nx)
 final_x = ocp.parameter()
@@ -44,22 +44,29 @@ L = ocp.parameter()     # wheelbase of the bicycle
 # constraint is active so the OCP can pick a non-zero start velocity.
 initial_state_slack_weight = ocp.parameter()
 
+# Regularised geometric curvature [rad/m].
+k = (v/L)*tan(delta) / sqrt(v**2 + CURVATURE_EPS**2)
+# Spatial curvature derivative: [rad/m^2].
+curvature_denominator = v**2 + CURVATURE_EPS**2
+k_dot = (
+    CURVATURE_EPS**2 * v_dot * tan(delta) / (L * v * curvature_denominator**1.5)
+    + delta_dot / (L * sqrt(curvature_denominator) * cos(delta)**2)
+)
+
 ocp.set_der(x, (v*cos(theta)))
 ocp.set_der(y, (v*sin(theta)))
 ocp.set_der(theta, (v/L)*tan(delta))
 ocp.set_der(v, v_dot)
 ocp.set_der(delta, delta_dot)
 
-# Regularised geometric curvature (kappa = w/v algebraically; the sqrt term
-# keeps the expression well-defined at v = 0).
-k = (v/L)*tan(delta) / sqrt(v**2 + CURVATURE_EPS**2)
 
 # Box constraints on the states and controls
 ocp.subject_to( (-max_linear_acc <= v_dot) <= max_linear_acc )
 # ocp.subject_to( (-1e-9 <= v_dot) <= 1e-9 )  # const velocity
-ocp.subject_to( (-max_steer_speed <= delta_dot) <= max_steer_speed )
 ocp.subject_to( (lower_speed <= v) <= upper_speed )
 ocp.subject_to( (-max_steering_angle <= delta) <= max_steering_angle )
+ocp.subject_to( (-max_steer_speed <= delta_dot) <= max_steer_speed )
+# ocp.subject_to( (-100 <= k_dot) <= 100 )
 
 
 # Initial condition
@@ -80,7 +87,7 @@ ocp.subject_to(ocp.at_tf(k)==kappa_end)
 
 ocp.add_objective(ocp.T)
 ocp.add_objective(ocp.integral(delta_dot**2)*1.0)
-
+# ocp.add_objective(ocp.integral(k_dot**2)*10.0)
 
 # Pick a solution method
 options = {"ipopt": {"print_level": 0}}
@@ -128,8 +135,9 @@ def return_poses(_xf, _yf, _thetaf, _x0, _max_vel, _min_vel, _max_ang_vel, _max_
     _, thetasol = sol.sample(theta, grid='control')
     _, vsol = sol.sample(v, grid='control')
     _, delta_sol = sol.sample(delta, grid='control')
+    _, delta_dot_sol = sol.sample(delta_dot, grid='control')
     _, ksol = sol.sample(k, grid='control')
-
+    _, k_dot_sol = sol.sample(k_dot, grid='control')
 
     # Poses along the curve
     ds = np.hypot(np.diff(xsol), np.diff(ysol))
