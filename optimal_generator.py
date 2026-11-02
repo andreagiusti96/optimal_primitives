@@ -72,7 +72,7 @@ class OptimalGenerator:
             )
             number_of_curvatures += 1
         
-        kappa_max = 1.0 / self.turning_radius
+        kappa_max = 0.95 / self.turning_radius
         
         list_of_curvatures = np.linspace(-kappa_max, kappa_max, number_of_curvatures).tolist()
         
