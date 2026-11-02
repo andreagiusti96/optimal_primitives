@@ -174,18 +174,24 @@ class PrimitivesAnalyzer:
         
         return indices
     
-    def plot_primitives_with(self, final_x=None, final_y=None, final_angle=None, start_angle=None, show_headings=False, show_curvature=False):
+    def plot_primitives_with(self, final_x=None, final_y=None, final_angle=None, start_angle=None, show_headings=False, show_curvature=False, show_curvature_der=None):
         """Plot primitives matching specified criteria."""
+        
+        if show_curvature_der is None and show_curvature:
+            show_curvature_der = True
+        
         trajectory_ids = self.get_primitives_with(final_x, final_y, final_angle, start_angle)
-        self.plot_primitive(trajectory_ids, show_headings=show_headings, show_curvature=show_curvature)
+        self.plot_primitive(trajectory_ids, show_headings=show_headings, show_curvature=show_curvature, show_curvature_der=show_curvature_der)
     
-    def plot_primitive(self, trajectory_ids=None, show_headings=False, show_curvature=False):
+    def plot_primitive(self, trajectory_ids=None, show_headings=False, show_curvature=False, show_curvature_der=None):
         """Plot one or more primitive trajectories.
         
         Args:
             trajectory_ids: int or list of ints specifying trajectory IDs to plot
             show_headings: bool, whether to show heading arrows along trajectories (default False)
             show_curvature: bool, whether to show curvature profile (default False)
+            show_curvature_der: bool, show spatial curvature derivative below curvature (default False).
+                Uses local arc-length spacing for ca_length in the supplied formula.
         """
         # Convert single ID to list
         if isinstance(trajectory_ids, int):
@@ -199,8 +205,18 @@ class PrimitivesAnalyzer:
             if traj_id >= len(self.primitives):
                 print(f"Error: trajectory_id {traj_id} out of range")
                 return
-        
-        if show_curvature:
+    
+        if show_curvature_der is None and show_curvature:
+            show_curvature_der = True
+            
+        show_curvature = show_curvature or show_curvature_der
+        if show_curvature_der:
+            fig = plt.figure(figsize=(12, 6))
+            grid = fig.add_gridspec(2, 2)
+            ax1 = fig.add_subplot(grid[:, 0])
+            ax2 = fig.add_subplot(grid[0, 1])
+            ax3 = fig.add_subplot(grid[1, 1], sharex=ax2)
+        elif show_curvature:
             fig, axes = plt.subplots(1, 2, figsize=(12, 6))
             ax1, ax2 = axes
         else:
@@ -254,6 +270,14 @@ class PrimitivesAnalyzer:
                 curve_lenght = np.cumsum(segement_lengths)
                 ax2.plot(curve_lenght, curvatures, '-', linewidth=2, color=color, label=label, alpha=0.8)
 
+                if show_curvature_der:
+                    if len(curvatures) < 2:
+                        print(f"Warning: At least two poses are needed for curvature derivative of trajectory {trajectory_id}")
+                    else:
+                        ca_length = np.gradient(curve_lenght)
+                        curvature_derivative = np.gradient(curvatures) / (ca_length * 2 + 1e-12)
+                        ax3.plot(curve_lenght, curvature_derivative, '-', linewidth=2, color=color, label=label, alpha=0.8)
+
                 # tot_curvature = np.sum(curvatures * segement_lengths)
                 # print(f"Trajectory ID {trajectory_id}: Total Curvature = {tot_curvature:.3f} rad")
                 # delta_theta = poses[-1, 2] - poses[0, 2]
@@ -288,7 +312,13 @@ class PrimitivesAnalyzer:
             ax2.set_ylabel('Signed Curvature (rad/m)')
             ax2.set_title('Curvature Profile')
             ax2.grid(True, alpha=0.3)
-            ax2.legend()
+
+        if show_curvature_der:
+            ax3.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+            ax3.set_xlabel('Arc Length (m)')
+            ax3.set_ylabel('Curvature Derivative (rad/m^2)')
+            ax3.set_title('Spatial Curvature Derivative')
+            ax3.grid(True, alpha=0.3)
         
         plt.tight_layout()
         plt.show()
@@ -303,6 +333,7 @@ class PrimitivesAnalyzer:
 
 # Load primitives
 # primitives_path = r"outputs\omni_primitives\primitives.json"
+
 # primitives_path = r"outputs\diff_primitives\primitives.json"
 # primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv.json"
 # primitives_path = r"outputs\diff_primitives\diff_primitives_wcurv_resample.json"
@@ -310,8 +341,17 @@ class PrimitivesAnalyzer:
 # primitives_path = r"outputs\diff_primitives_cc\diff_primitives_wcurv.json"
 # primitives_path = r"outputs\diff_primitives_constvel\diff_primitives_wcurv_constvel.json"
 # primitives_path = r"outputs\diff_primitives_opt\diff_primitives_wcurv.json"
+
 primitives_path = r"outputs\ackermann_primitives_opt\ackermann_primitives_wcurv.json"
 # primitives_path = r"outputs\ackermann_primitives_opt_freekf_constvel\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_freevel\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_freevel_steerpen\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_freevel_steerpenlim\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_freevel_steerpenlim_boundvel\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_constvel\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_constvel_steerpen\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_constvel_steerpenlim\ackermann_primitives_wcurv.json"
+# primitives_path = r"outputs\ackermann_primitives_opt_multikf_constvel_steerpenlim_boundvel\ackermann_primitives_wcurv.json"
 
 
 analyzer = PrimitivesAnalyzer(primitives_path)
